@@ -1,0 +1,12 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "extends": [
+    "./node_modules/ultracite/config/oxlint/core/.oxlintrc.json",
+    "./node_modules/ultracite/config/oxlint/react/.oxlintrc.json"
+  ],
+  "ignorePatterns": ["packages/db", "packages/auth"],
+  "rules": {
+    "unicorn/no-abusive-eslint-disable": "off",
+    "unicorn/filename-case": "off"
+  }
+}

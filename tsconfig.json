@@ -1,3 +1,6 @@
 {
-  "extends": "@ocrbase/config/tsconfig.base.json"
+  "extends": "@ocrbase/config/tsconfig.base.json",
+  "compilerOptions": {
+    "strictNullChecks": true
+  }
 }

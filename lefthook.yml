@@ -1,0 +1,17 @@
+pre-commit:
+  jobs:
+    - name: type-check
+      group:
+        parallel: true
+        jobs:
+          - run: bun run check-types
+    - run: bun x ultracite fix
+      glob:
+        - "*.js"
+        - "*.jsx"
+        - "*.ts"
+        - "*.tsx"
+        - "*.json"
+        - "*.jsonc"
+        - "*.css"
+      stage_fixed: true
