@@ -1,5 +1,8 @@
 # prod
 dist/
+
+# TypeScript declaration files in source (build artifacts)
+src/**/*.d.ts
 /build
 /out/
 
