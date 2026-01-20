@@ -1,39 +1,17 @@
 # OCRBase
 
-A powerful OCR document processing and structured data extraction API built with modern TypeScript tooling.
+Turn PDFs into structured data at scale. Powered by frontier open-weight OCR models with a type-safe TypeScript SDK.
 
-## Overview
+## Features
 
-OCRBase provides:
-
-- Document OCR using PaddleOCR for accurate text extraction
-- AI-powered structured data extraction using LLMs
-- Custom schema support for targeted data extraction
-- Real-time job status updates via WebSocket
-- RESTful API with OpenAPI documentation
-- **Type-safe TypeScript SDK** with React hooks
-
-## Architecture
-
-![Architecture Diagram](docs/architecture.svg)
-
-## Tech Stack
-
-| Layer         | Technology                                                    |
-| ------------- | ------------------------------------------------------------- |
-| Runtime       | [Bun](https://bun.sh/)                                        |
-| API Framework | [Elysia](https://elysiajs.com/)                               |
-| SDK           | [Eden Treaty](https://elysiajs.com/eden/treaty/overview.html) |
-| Database      | PostgreSQL + [Drizzle ORM](https://orm.drizzle.team/)         |
-| Queue         | Redis + [BullMQ](https://bullmq.io/)                          |
-| Storage       | S3/MinIO                                                      |
-| OCR           | [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)        |
-| Auth          | [Better-Auth](https://better-auth.com/)                       |
-| Build         | [Turborepo](https://turbo.build/)                             |
+- **Best-in-class OCR** - PaddleOCR-VL-0.9B for accurate text extraction
+- **Structured extraction** - Define schemas, get JSON back
+- **Built for scale** - Queue-based processing for thousands of documents
+- **Type-safe SDK** - Full TypeScript support with React hooks
+- **Real-time updates** - WebSocket notifications for job progress
+- **Self-hostable** - Run on your own infrastructure
 
 ## Quick Start
-
-### Using the SDK (Recommended)
 
 ```bash
 bun add @ocrbase/sdk
@@ -42,166 +20,31 @@ bun add @ocrbase/sdk
 ```typescript
 import { createOCRBaseClient } from "@ocrbase/sdk";
 
-const client = createOCRBaseClient({ baseUrl: "http://localhost:3000" });
+const client = createOCRBaseClient({ baseUrl: "https://your-instance.com" });
 
-// Upload and process a document
-const job = await client.jobs.create({
-  file: document,
-  type: "parse", // or "extract" for structured data
-});
-
-// Subscribe to real-time updates
-client.ws.subscribeToJob(job.id, {
-  onStatus: (status) => console.log("Status:", status),
-  onComplete: (data) => console.log("Result:", data.markdownResult),
-  onError: (error) => console.error("Error:", error),
-});
-
-// Or poll for results
+// Process a document
+const job = await client.jobs.create({ file: document, type: "parse" });
 const result = await client.jobs.get(job.id);
+
+console.log(result.markdownResult);
 ```
 
-See [`packages/sdk/README.md`](./packages/sdk/README.md) for complete SDK documentation.
+See [SDK documentation](./packages/sdk/README.md) for React hooks and advanced usage.
 
 ## Self-Hosting
 
-### Prerequisites
+See [Self-Hosting Guide](./docs/SELF_HOSTING.md) for deployment instructions.
 
-- [Bun](https://bun.sh/) installed globally
-- Docker Desktop running
-- **GPU for OCR**: PaddleOCR-VL-0.9B requires a CUDA-capable GPU with at least 12GB VRAM (tested on RTX 3060 12GB)
+**Requirements:** Docker, Bun, CUDA GPU with 12GB+ VRAM
 
-### 1. Clone and Install
+## Architecture
 
-```bash
-git clone <repository-url>
-cd ocrbase
-bun install
-```
-
-### 2. Environment Setup
-
-Create a `.env` file:
-
-```bash
-# Required
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ocrbase
-BETTER_AUTH_SECRET=your-secret-key-at-least-32-characters-long
-BETTER_AUTH_URL=http://localhost:3000
-CORS_ORIGIN=http://localhost:3001
-
-# Redis
-REDIS_URL=redis://localhost:6379
-
-# S3/MinIO Storage
-S3_ENDPOINT=http://localhost:9000
-S3_REGION=us-east-1
-S3_BUCKET=ocrbase
-S3_ACCESS_KEY=minioadmin
-S3_SECRET_KEY=minioadmin
-
-# OCR Service
-PADDLE_OCR_URL=http://localhost:8080
-
-# Optional - LLM for data extraction
-OPENROUTER_API_KEY=your-openrouter-api-key
-
-# Optional - GitHub OAuth
-GITHUB_CLIENT_ID=your-github-client-id
-GITHUB_CLIENT_SECRET=your-github-client-secret
-```
-
-### 3. Start Services
-
-```bash
-# Start infrastructure
-docker compose up -d postgres redis minio paddleocr
-
-# Setup database
-bun run db:push
-
-# Start API server + worker
-bun run dev
-```
-
-The API will be available at `http://localhost:3000`.
-
-## API Reference
-
-### REST Endpoints
-
-| Method   | Endpoint                 | Description        |
-| -------- | ------------------------ | ------------------ |
-| `GET`    | `/health/live`           | Liveness check     |
-| `GET`    | `/health/ready`          | Readiness check    |
-| `POST`   | `/api/jobs`              | Create OCR job     |
-| `GET`    | `/api/jobs`              | List jobs          |
-| `GET`    | `/api/jobs/:id`          | Get job            |
-| `DELETE` | `/api/jobs/:id`          | Delete job         |
-| `GET`    | `/api/jobs/:id/download` | Download result    |
-| `POST`   | `/api/schemas`           | Create schema      |
-| `GET`    | `/api/schemas`           | List schemas       |
-| `GET`    | `/api/schemas/:id`       | Get schema         |
-| `PATCH`  | `/api/schemas/:id`       | Update schema      |
-| `DELETE` | `/api/schemas/:id`       | Delete schema      |
-| `POST`   | `/api/schemas/generate`  | AI-generate schema |
-
-### WebSocket
-
-```
-WS /ws/jobs/:jobId
-```
-
-Real-time job status updates. See SDK for type-safe usage.
-
-### OpenAPI
-
-Interactive documentation at: `http://localhost:3000/openapi`
-
-## Project Structure
-
-```
-ocrbase/
-├── apps/
-│   ├── web/                 # Frontend (TanStack Start)
-│   └── server/              # Backend API (Elysia)
-│       ├── src/
-│       │   ├── modules/     # Feature modules (jobs, schemas, health)
-│       │   ├── plugins/     # Elysia plugins
-│       │   ├── services/    # Core services (OCR, LLM, storage)
-│       │   └── workers/     # Background job processors
-├── packages/
-│   ├── sdk/                 # TypeScript SDK (@ocrbase/sdk)
-│   ├── auth/                # Authentication (Better-Auth)
-│   ├── db/                  # Database schema (Drizzle)
-│   ├── env/                 # Environment validation
-│   └── paddleocr-vl-ts/     # PaddleOCR client
-└── docker-compose.yml
-```
-
-## Scripts
-
-| Command               | Description         |
-| --------------------- | ------------------- |
-| `bun run dev`         | Start all services  |
-| `bun run dev:server`  | Start API only      |
-| `bun run dev:web`     | Start frontend only |
-| `bun run build`       | Build all packages  |
-| `bun run check-types` | TypeScript checking |
-| `bun run db:push`     | Push schema to DB   |
-| `bun run db:studio`   | Open Drizzle Studio |
-| `bun run db:migrate`  | Run migrations      |
-
-## Docker Deployment
-
-```bash
-docker compose up --build
-```
+![Architecture Diagram](docs/architecture.svg)
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+MIT - See [LICENSE](LICENSE) for details.
 
 ## Contact
 
-For API access, on-premise deployment inquiries, or any questions, please contact: adammajcher20@gmail.com
+For API access, on-premise deployment, or questions: adammajcher20@gmail.com
