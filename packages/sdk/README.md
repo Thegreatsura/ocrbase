@@ -1,23 +1,23 @@
-# @ocrbase/sdk
+# ocrbase
 
 Type-safe SDK for the OCRBase API, built with [Eden Treaty](https://elysiajs.com/eden/treaty/overview.html).
 
 ## Installation
 
 ```bash
-bun add @ocrbase/sdk
+bun add ocrbase
 ```
 
 For React integration:
 
 ```bash
-bun add @ocrbase/sdk @tanstack/react-query
+bun add ocrbase @tanstack/react-query
 ```
 
 ## Quick Start
 
 ```typescript
-import { createOCRBaseClient } from "@ocrbase/sdk";
+import { createOCRBaseClient } from "ocrbase";
 
 const client = createOCRBaseClient({
   baseUrl: "http://localhost:3000",
@@ -49,7 +49,7 @@ const unsubscribe = client.ws.subscribeToJob(job.id, {
 
 ```tsx
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { OCRBaseProvider } from "@ocrbase/sdk/react";
+import { OCRBaseProvider } from "ocrbase/react";
 
 const queryClient = new QueryClient();
 
@@ -72,7 +72,7 @@ import {
   useJob,
   useCreateJob,
   useJobSubscription,
-} from "@ocrbase/sdk/react";
+} from "ocrbase/react";
 
 function JobsList() {
   const { data, isLoading } = useJobs({ status: "completed" });
@@ -242,7 +242,7 @@ const client = createOCRBaseClient({
 All methods throw `SDKError` on failure:
 
 ```typescript
-import { SDKError } from "@ocrbase/sdk";
+import { SDKError } from "ocrbase";
 
 try {
   await client.jobs.get("invalid-id");
@@ -287,7 +287,7 @@ import type {
   JobStatus,
   SchemaResponse,
   CreateJobInput,
-} from "@ocrbase/sdk";
+} from "ocrbase";
 ```
 
 ## License

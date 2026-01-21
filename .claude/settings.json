@@ -7,6 +7,10 @@
           {
             "type": "command",
             "command": "bun x ultracite fix"
+          },
+          {
+            "type": "command",
+            "command": "bun check-types"
           }
         ]
       }

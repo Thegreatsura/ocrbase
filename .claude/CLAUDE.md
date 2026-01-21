@@ -5,6 +5,7 @@ This project uses **Ultracite**, a zero-config preset that enforces strict code 
 ## Quick Reference
 
 - **Format code**: `bun x ultracite fix`
+- **Check types**: `bun check-types`
 - **Check for issues**: `bun x ultracite check`
 - **Diagnose setup**: `bun x ultracite doctor`
 
