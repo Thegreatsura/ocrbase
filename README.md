@@ -14,19 +14,27 @@ Turn PDFs into structured data at scale. Powered by frontier open-weight OCR mod
 ## Quick Start
 
 ```bash
-bun add ocrbase
+npm install ocrbase
 ```
 
 ```typescript
-import { createOCRBaseClient } from "ocrbase";
+import { createClient } from "ocrbase";
 
-const client = createOCRBaseClient({ baseUrl: "https://your-instance.com" });
+const { parse, extract } = createClient({
+  baseUrl: "https://your-instance.com",
+  apiKey: "ak_xxx",
+});
 
-// Process a document
-const job = await client.jobs.create({ file: document, type: "parse" });
-const result = await client.jobs.get(job.id);
+// Parse document to markdown
+const job = await parse({ file: document });
+console.log(job.markdownResult);
 
-console.log(result.markdownResult);
+// Extract structured data
+const job = await extract({
+  file: invoice,
+  hints: "invoice number, date, total, line items",
+});
+console.log(job.jsonResult);
 ```
 
 See [SDK documentation](./packages/sdk/README.md) for React hooks and advanced usage.

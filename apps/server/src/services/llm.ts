@@ -7,7 +7,7 @@ const openrouter = createOpenAI({
   baseURL: "https://openrouter.ai/api/v1",
 });
 
-const DEFAULT_MODEL = "google/gemini-2.5";
+const DEFAULT_MODEL = "google/gemini-2.5-flash";
 
 interface ProcessExtractionOptions {
   markdown: string;

@@ -1,51 +1,150 @@
 # ocrbase
 
-Type-safe SDK for the OCRBase API, built with [Eden Treaty](https://elysiajs.com/eden/treaty/overview.html).
+Type-safe SDK for OCRBase - document parsing and data extraction API.
 
 ## Installation
 
 ```bash
-bun add ocrbase
-```
-
-For React integration:
-
-```bash
-bun add ocrbase @tanstack/react-query
+npm install ocrbase
 ```
 
 ## Quick Start
 
 ```typescript
-import { createOCRBaseClient } from "ocrbase";
+import { createClient } from "ocrbase";
 
-const client = createOCRBaseClient({
-  baseUrl: "http://localhost:3000",
+const { parse, extract } = createClient({
+  baseUrl: "https://api.ocrbase.com",
+  apiKey: "ak_xxx",
 });
 
-// List completed jobs
-const { data, pagination } = await client.jobs.list({
+// Parse document to markdown
+const job = await parse({ file: document });
+console.log(job.markdownResult);
+
+// Extract structured data
+const job = await extract({
+  file: invoice,
+  hints: "invoice number, date, total, line items",
+});
+console.log(job.jsonResult);
+```
+
+## Core API
+
+### Parse - Document to Markdown
+
+```typescript
+const { parse } = createClient({ baseUrl, apiKey });
+
+// From file
+const job = await parse({ file: myFile });
+
+// From URL
+const job = await parse({ url: "https://example.com/document.pdf" });
+
+// Result
+job.id; // "job_abc123"
+job.status; // "completed"
+job.markdownResult; // "# Document Title\n\nContent..."
+```
+
+### Extract - Document to Structured Data
+
+```typescript
+const { extract } = createClient({ baseUrl, apiKey });
+
+// With hints (schema-free extraction)
+const job = await extract({
+  file: invoice,
+  hints: "invoice number, vendor name, total amount, line items",
+});
+
+// With predefined schema
+const job = await extract({
+  file: invoice,
+  schemaId: "sch_invoices",
+});
+
+// Result
+job.jsonResult; // { invoiceNumber: "INV-001", total: 1234.56, ... }
+```
+
+### Jobs - Manage Processing Jobs
+
+```typescript
+const { jobs } = createClient({ baseUrl, apiKey });
+
+// List jobs
+const { data, pagination } = await jobs.list({
   status: "completed",
-  limit: 10,
+  type: "extract",
+  limit: 20,
 });
 
-// Create a job from file
-const job = await client.jobs.create({
-  file: document,
-  type: "parse",
+// Get single job
+const job = await jobs.get("job_abc123");
+
+// Download result
+const markdown = await jobs.download("job_abc123", "md");
+const json = await jobs.download("job_abc123", "json");
+
+// Delete job
+await jobs.delete("job_abc123");
+```
+
+### Schemas - Manage Extraction Schemas
+
+```typescript
+const { schemas } = createClient({ baseUrl, apiKey });
+
+// List schemas
+const list = await schemas.list();
+
+// Create schema
+const schema = await schemas.create({
+  name: "Invoice",
+  description: "Extract invoice data",
+  jsonSchema: {
+    type: "object",
+    properties: {
+      invoiceNumber: { type: "string" },
+      total: { type: "number" },
+    },
+  },
 });
 
-// Subscribe to real-time updates
-const unsubscribe = client.ws.subscribeToJob(job.id, {
-  onStatus: (status) => console.log("Status:", status),
-  onComplete: (data) => console.log("Done:", data.markdownResult),
-  onError: (error) => console.error("Error:", error),
+// Generate schema from sample document
+const generated = await schemas.generate({
+  jobId: "job_abc123",
+  hints: "focus on line items and totals",
 });
 ```
 
+### WebSocket - Real-time Job Updates
+
+```typescript
+const { ws } = createClient({ baseUrl, apiKey });
+
+const unsubscribe = ws.subscribeToJob("job_abc123", {
+  onStatus: (status) => console.log("Status:", status),
+  onComplete: (job) => console.log("Done:", job.jsonResult),
+  onError: (error) => console.error("Failed:", error),
+});
+
+// Later: cleanup
+unsubscribe();
+```
+
+---
+
 ## React Integration
 
-### Setup Provider
+```bash
+npm install ocrbase @tanstack/react-query
+```
+
+### Setup
 
 ```tsx
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -56,7 +155,12 @@ const queryClient = new QueryClient();
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <OCRBaseProvider config={{ baseUrl: "http://localhost:3000" }}>
+      <OCRBaseProvider
+        config={{
+          baseUrl: "https://api.ocrbase.com",
+          apiKey: "ak_xxx",
+        }}
+      >
         <YourApp />
       </OCRBaseProvider>
     </QueryClientProvider>
@@ -64,172 +168,177 @@ function App() {
 }
 ```
 
-### Use Hooks
+### Document Drop Zone
+
+Complete example with drag & drop, real-time progress, and results:
 
 ```tsx
-import {
-  useJobs,
-  useJob,
-  useCreateJob,
-  useJobSubscription,
-} from "ocrbase/react";
+import { useParse, useJobSubscription } from "ocrbase/react";
+import { useCallback, useState } from "react";
 
-function JobsList() {
-  const { data, isLoading } = useJobs({ status: "completed" });
+function DocumentDropZone() {
+  const [jobId, setJobId] = useState<string | null>(null);
+  const parse = useParse();
 
-  if (isLoading) return <div>Loading...</div>;
-
-  return (
-    <ul>
-      {data?.data.map((job) => (
-        <li key={job.id}>{job.fileName}</li>
-      ))}
-    </ul>
+  const onDrop = useCallback(
+    (files: FileList) => {
+      const file = files[0];
+      parse.mutate(
+        { file },
+        {
+          onSuccess: (job) => setJobId(job.id),
+        }
+      );
+    },
+    [parse]
   );
-}
-
-function JobUploader() {
-  const createJob = useCreateJob();
-
-  const handleUpload = (file: File) => {
-    createJob.mutate({ file, type: "parse" });
-  };
 
   return (
-    <input type="file" onChange={(e) => handleUpload(e.target.files![0])} />
+    <div
+      onDrop={(e) => {
+        e.preventDefault();
+        onDrop(e.dataTransfer.files);
+      }}
+      onDragOver={(e) => e.preventDefault()}
+    >
+      {parse.isPending && <p>Uploading...</p>}
+      {jobId && <JobProgress jobId={jobId} />}
+      {!jobId && !parse.isPending && <p>Drop a document here</p>}
+    </div>
   );
 }
 
 function JobProgress({ jobId }: { jobId: string }) {
-  const { isConnected, status } = useJobSubscription(jobId, {
-    onComplete: (data) => {
-      console.log("Job completed:", data);
+  const { status, job, isConnected } = useJobSubscription(jobId, {
+    onComplete: (job) => {
+      console.log("Extraction complete:", job.jsonResult);
     },
   });
 
+  if (status === "completed" && job) {
+    return <pre>{job.markdownResult}</pre>;
+  }
+
+  return (
+    <p>
+      {isConnected ? "Connected" : "Connecting..."} - {status}
+    </p>
+  );
+}
+```
+
+### Extract with Hints
+
+```tsx
+import { useExtract, useJobSubscription } from "ocrbase/react";
+
+function InvoiceExtractor() {
+  const [jobId, setJobId] = useState<string | null>(null);
+  const extract = useExtract();
+
+  const handleFile = (file: File) => {
+    extract.mutate(
+      {
+        file,
+        hints:
+          "invoice number, date, vendor, total, line items with description and amount",
+      },
+      {
+        onSuccess: (job) => setJobId(job.id),
+      }
+    );
+  };
+
+  const { job, status } = useJobSubscription(jobId!, {
+    enabled: !!jobId,
+  });
+
+  if (status === "completed" && job?.jsonResult) {
+    return <InvoiceDisplay data={job.jsonResult} />;
+  }
+
   return (
     <div>
-      {isConnected ? "🟢 Connected" : "🔴 Disconnected"} - Status: {status}
+      <input type="file" onChange={(e) => handleFile(e.target.files![0])} />
+      {extract.isPending && <p>Uploading...</p>}
+      {status === "processing" && <p>Parsing document...</p>}
+      {status === "extracting" && <p>Extracting data...</p>}
     </div>
   );
 }
 ```
 
-## API Reference
+### React Hooks Reference
 
-### Client Methods
+| Hook                     | Description                              |
+| ------------------------ | ---------------------------------------- |
+| `useParse()`             | Parse document mutation                  |
+| `useExtract()`           | Extract data mutation                    |
+| `useJobs(query?)`        | List jobs query                          |
+| `useJob(id)`             | Get single job query                     |
+| `useDeleteJob()`         | Delete job mutation                      |
+| `useSchemas()`           | List schemas query                       |
+| `useSchema(id)`          | Get single schema query                  |
+| `useCreateSchema()`      | Create schema mutation                   |
+| `useGenerateSchema()`    | Generate schema mutation                 |
+| `useJobSubscription(id)` | WebSocket subscription with auto-refresh |
 
-#### Jobs
+---
 
-```typescript
-// List jobs with filtering
-client.jobs.list({ status?, type?, page?, limit?, sortBy?, sortOrder? })
-
-// Get single job
-client.jobs.get(id)
-
-// Create job from file or URL
-client.jobs.create({ file?, url?, type, schemaId?, llmProvider?, llmModel? })
-
-// Delete job
-client.jobs.delete(id)
-
-// Download result
-client.jobs.download(id, format?) // format: "md" | "json"
-```
-
-#### Schemas
+## Error Handling
 
 ```typescript
-// List all schemas
-client.schemas.list()
+import { SDKError } from "ocrbase";
 
-// Get single schema
-client.schemas.get(id)
-
-// Create schema
-client.schemas.create({ name, description?, jsonSchema })
-
-// Update schema
-client.schemas.update(id, { name?, description?, jsonSchema? })
-
-// Delete schema
-client.schemas.delete(id)
-
-// Generate schema from job
-client.schemas.generate({ jobId?, hints?, name? })
+try {
+  await parse({ file });
+} catch (error) {
+  if (error instanceof SDKError) {
+    switch (error.code) {
+      case "UNAUTHORIZED":
+        // Redirect to login
+        break;
+      case "VALIDATION_ERROR":
+        // Show form errors
+        break;
+      case "SERVER_ERROR":
+        // Retry or show error
+        break;
+    }
+  }
+}
 ```
 
-#### Health
+| Code               | Status | Description                |
+| ------------------ | ------ | -------------------------- |
+| `UNAUTHORIZED`     | 401    | Invalid or missing API key |
+| `NOT_FOUND`        | 404    | Resource not found         |
+| `VALIDATION_ERROR` | 400    | Invalid request            |
+| `SERVER_ERROR`     | 5xx    | Server error               |
+| `NETWORK_ERROR`    | -      | Connection failed          |
 
-```typescript
-// Liveness check
-client.health.live();
-
-// Readiness check with service status
-client.health.ready();
-```
-
-#### WebSocket
-
-```typescript
-// Subscribe to job updates
-const unsubscribe = client.ws.subscribeToJob(jobId, {
-  onConnect: () => {},
-  onDisconnect: () => {},
-  onStatus: (status) => {},
-  onComplete: (data) => {},
-  onError: (error) => {},
-});
-
-// Unsubscribe
-unsubscribe();
-```
-
-### React Hooks
-
-| Hook                                 | Description                                   |
-| ------------------------------------ | --------------------------------------------- |
-| `useJobs(query?)`                    | List jobs with optional filtering             |
-| `useJob(id)`                         | Get single job                                |
-| `useCreateJob()`                     | Create job mutation                           |
-| `useDeleteJob()`                     | Delete job mutation                           |
-| `useDownloadJob()`                   | Download job result mutation                  |
-| `useSchemas()`                       | List all schemas                              |
-| `useSchema(id)`                      | Get single schema                             |
-| `useCreateSchema()`                  | Create schema mutation                        |
-| `useUpdateSchema()`                  | Update schema mutation                        |
-| `useDeleteSchema()`                  | Delete schema mutation                        |
-| `useGenerateSchema()`                | Generate schema mutation                      |
-| `useJobSubscription(id, callbacks?)` | WebSocket subscription with auto-invalidation |
+---
 
 ## Configuration
 
 ```typescript
-const client = createOCRBaseClient({
+const client = createClient({
   // Required
-  baseUrl: "http://localhost:3000",
+  baseUrl: "https://api.ocrbase.com",
 
-  // Optional: default headers
+  // API key authentication
+  apiKey: "ak_xxx",
+
+  // Or custom headers
   headers: {
-    "X-Custom-Header": "value",
+    Authorization: "Bearer xxx",
   },
 
-  // Optional: dynamic headers
-  headers: (path, options) => ({
-    "X-Request-Path": path,
-  }),
-
-  // Optional: credentials mode (default: "include")
-  credentials: "include",
-
-  // Optional: request interceptor
+  // Request/response interceptors
   onRequest: (path, options) => {
     console.log("Request:", path);
     return options;
   },
-
-  // Optional: response interceptor
   onResponse: (response) => {
     console.log("Response:", response.status);
     return response;
@@ -237,57 +346,18 @@ const client = createOCRBaseClient({
 });
 ```
 
-## Error Handling
-
-All methods throw `SDKError` on failure:
-
-```typescript
-import { SDKError } from "ocrbase";
-
-try {
-  await client.jobs.get("invalid-id");
-} catch (error) {
-  if (error instanceof SDKError) {
-    console.log(error.code); // "NOT_FOUND" | "UNAUTHORIZED" | ...
-    console.log(error.status); // 404
-    console.log(error.message); // "Job not found"
-  }
-}
-```
-
-Error codes:
-
-| Code               | Description                   |
-| ------------------ | ----------------------------- |
-| `UNAUTHORIZED`     | 401 - Authentication required |
-| `NOT_FOUND`        | 404 - Resource not found      |
-| `VALIDATION_ERROR` | 4xx - Invalid request         |
-| `SERVER_ERROR`     | 5xx - Server error            |
-| `NETWORK_ERROR`    | Connection failed             |
-| `UNKNOWN_ERROR`    | Other errors                  |
-
-## Advanced: Direct Eden Access
-
-For advanced use cases, access the raw Eden Treaty client:
-
-```typescript
-const client = createOCRBaseClient({ baseUrl });
-
-// Direct Eden Treaty access
-const response = await client._eden.api.jobs.get();
-```
+---
 
 ## TypeScript
 
-Full type inference from the server:
+Full type inference from the API:
 
 ```typescript
-import type {
-  JobResponse,
-  JobStatus,
-  SchemaResponse,
-  CreateJobInput,
-} from "ocrbase";
+import type { JobResponse, SchemaResponse } from "ocrbase";
+
+// Types are inferred from API responses
+const job = await parse({ file }); // job: JobResponse
+const schema = await schemas.get("sch_xxx"); // schema: SchemaResponse
 ```
 
 ## License

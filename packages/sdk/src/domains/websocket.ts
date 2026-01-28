@@ -2,22 +2,6 @@ import type { EdenClient } from "../client";
 import type { JobStatus, JobUpdateMessage, WebSocketCallbacks } from "../types";
 
 export interface WebSocketClient {
-  /**
-   * Subscribe to real-time updates for a specific job.
-   * Returns an unsubscribe function to close the connection.
-   *
-   * @example
-   * ```typescript
-   * const unsubscribe = client.ws.subscribeToJob("job_123", {
-   *   onStatus: (status) => console.log("Status:", status),
-   *   onComplete: (data) => console.log("Complete:", data),
-   *   onError: (error) => console.error("Error:", error),
-   * });
-   *
-   * // Later, to close the connection:
-   * unsubscribe();
-   * ```
-   */
   subscribeToJob: (jobId: string, callbacks: WebSocketCallbacks) => () => void;
 }
 
@@ -28,9 +12,6 @@ type WebSocketMessage =
 
 const PING_INTERVAL_MS = 30_000;
 
-/**
- * Creates a WebSocket client using Eden Treaty's type-safe WebSocket support.
- */
 export const createWebSocketClient = (eden: EdenClient): WebSocketClient => ({
   subscribeToJob: (jobId, callbacks) => {
     // Use Eden Treaty's type-safe WebSocket subscription

@@ -29,6 +29,9 @@ export interface SDKConfig {
   /** Base URL of the OCRBase API server */
   baseUrl: string;
 
+  /** API key for authentication (recommended) */
+  apiKey?: string;
+
   /** Default headers for all requests */
   headers?: SDKHeaders;
 
@@ -63,8 +66,9 @@ export interface JobResponse {
   mimeType: string;
   sourceUrl: string | null;
   schemaId: string | null;
+  hints: string | null;
   markdownResult: string | null;
-  jsonResult?: unknown;
+  jsonResult: unknown | null;
   pageCount: number | null;
   tokenCount: number | null;
   processingTimeMs: number | null;
@@ -108,7 +112,8 @@ export interface ParseInput {
 export interface ExtractInput {
   file?: File;
   url?: string;
-  schemaId: string;
+  schemaId?: string;
+  hints?: string;
 }
 
 export interface SchemaResponse {

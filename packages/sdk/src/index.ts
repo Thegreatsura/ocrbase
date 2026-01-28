@@ -1,5 +1,6 @@
 // Client
 export {
+  createClient,
   createOCRBaseClient,
   type EdenClient,
   type OCRBaseClient,

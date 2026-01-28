@@ -15,7 +15,8 @@
     "unicorn/filename-case": "off",
     "import/consistent-type-specifier-style": "off",
     "max-statements": "off",
-    "jest/require-hook": "off"
+    "jest/require-hook": "off",
+    "func-style": ["error", "expression", { "allowArrowFunctions": true }]
   },
   "overrides": [
     {
