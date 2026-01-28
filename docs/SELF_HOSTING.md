@@ -7,32 +7,6 @@ Complete guide for deploying OCRBase on your own infrastructure.
 - [Bun](https://bun.sh/) installed globally
 - Docker Desktop running
 
-## PaddleOCR-VL Setup
-
-OCRBase requires a running PaddleOCR-VL service. You can either use a hosted service or self-host it.
-
-### Option 1: Self-Host with Docker Compose (Recommended)
-
-**Requirements:** NVIDIA GPU with CUDA 12.6+, Docker 19.03+
-
-1. Download the deployment files from [PaddleOCR GitHub](https://github.com/PaddlePaddle/PaddleOCR/tree/main/deploy/paddleocr_vl_docker/accelerators/gpu/):
-   - `compose.yaml`
-   - `.env`
-
-2. Start the service:
-
-   ```bash
-   docker compose up
-   ```
-
-3. Wait for "Application startup complete" - the service will be available at `http://localhost:8080`
-
-For detailed configuration options, see the [official PaddleOCR-VL documentation](https://www.paddleocr.ai/latest/en/version3.x/pipeline_usage/PaddleOCR-VL.html#41-method-1-deploy-using-docker-compose-recommended).
-
-### Option 2: Use a Hosted Service
-
-Set the `PADDLE_OCR_URL` environment variable to point to your hosted PaddleOCR instance.
-
 ## Quick Start
 
 ```bash
@@ -41,8 +15,12 @@ git clone https://github.com/majcheradam/ocrbase
 cd ocrbase
 bun install
 
-# Start infrastructure
-docker compose up -d postgres redis minio paddleocr
+# Copy environment file
+cp .env.example .env
+# Edit .env and set PADDLE_OCR_URL to your PaddleOCR instance
+
+# Start infrastructure (postgres, redis, minio)
+docker compose up -d
 
 # Setup database
 bun run db:push
@@ -52,6 +30,41 @@ bun run dev
 ```
 
 The API will be available at `http://localhost:3000`.
+
+## PaddleOCR-VL Setup
+
+OCRBase requires a PaddleOCR-VL service. Choose one option:
+
+### Option 1: External URL (Recommended)
+
+Set `PADDLE_OCR_URL` in your `.env` to point to your hosted PaddleOCR instance:
+
+```bash
+PADDLE_OCR_URL=https://your-paddleocr-instance.com
+```
+
+### Option 2: Self-Host with GPU
+
+**Requirements:** NVIDIA GPU with CUDA 12.6+, Docker with NVIDIA runtime
+
+Start everything including PaddleOCR:
+
+```bash
+docker compose --profile gpu up -d
+```
+
+This will start:
+
+- PostgreSQL, Redis, MinIO (core infrastructure)
+- PaddleOCR VLM server + API (GPU-accelerated OCR)
+
+Wait for "Application startup complete" - PaddleOCR will be available at `http://localhost:8080`.
+
+Then set in `.env`:
+
+```bash
+PADDLE_OCR_URL=http://localhost:8080
+```
 
 ## Environment Variables
 
@@ -75,9 +88,9 @@ S3_ACCESS_KEY=minioadmin
 S3_SECRET_KEY=minioadmin
 
 # OCR Service
-PADDLE_OCR_URL=http://localhost:8080
+PADDLE_OCR_URL=https://your-paddleocr-instance.com
 
-# Optional - LLM for data extraction
+# Optional - LLM for data extraction (required for /api/extract)
 OPENROUTER_API_KEY=your-openrouter-api-key
 
 # Optional - GitHub OAuth
@@ -85,33 +98,26 @@ GITHUB_CLIENT_ID=your-github-client-id
 GITHUB_CLIENT_SECRET=your-github-client-secret
 ```
 
-## Docker Deployment
-
-For production, use Docker Compose:
-
-```bash
-docker compose up --build
-```
-
 ## API Reference
 
 ### REST Endpoints
 
-| Method   | Endpoint                 | Description        |
-| -------- | ------------------------ | ------------------ |
-| `GET`    | `/health/live`           | Liveness check     |
-| `GET`    | `/health/ready`          | Readiness check    |
-| `POST`   | `/api/jobs`              | Create OCR job     |
-| `GET`    | `/api/jobs`              | List jobs          |
-| `GET`    | `/api/jobs/:id`          | Get job            |
-| `DELETE` | `/api/jobs/:id`          | Delete job         |
-| `GET`    | `/api/jobs/:id/download` | Download result    |
-| `POST`   | `/api/schemas`           | Create schema      |
-| `GET`    | `/api/schemas`           | List schemas       |
-| `GET`    | `/api/schemas/:id`       | Get schema         |
-| `PATCH`  | `/api/schemas/:id`       | Update schema      |
-| `DELETE` | `/api/schemas/:id`       | Delete schema      |
-| `POST`   | `/api/schemas/generate`  | AI-generate schema |
+| Method   | Endpoint                 | Description                |
+| -------- | ------------------------ | -------------------------- |
+| `GET`    | `/health/live`           | Liveness check             |
+| `GET`    | `/health/ready`          | Readiness check            |
+| `POST`   | `/api/parse`             | Parse document to markdown |
+| `POST`   | `/api/extract`           | Extract structured data    |
+| `GET`    | `/api/jobs`              | List jobs                  |
+| `GET`    | `/api/jobs/:id`          | Get job                    |
+| `DELETE` | `/api/jobs/:id`          | Delete job                 |
+| `GET`    | `/api/jobs/:id/download` | Download result            |
+| `POST`   | `/api/schemas`           | Create schema              |
+| `GET`    | `/api/schemas`           | List schemas               |
+| `GET`    | `/api/schemas/:id`       | Get schema                 |
+| `PATCH`  | `/api/schemas/:id`       | Update schema              |
+| `DELETE` | `/api/schemas/:id`       | Delete schema              |
+| `POST`   | `/api/schemas/generate`  | AI-generate schema         |
 
 ### WebSocket
 

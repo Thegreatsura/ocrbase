@@ -81,7 +81,7 @@ services:
 
   # PostgreSQL Database
   postgres:
-    image: postgres:16-alpine
+    image: postgres:latest
     container_name: ocrbase-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -106,7 +106,7 @@ services:
 
   # Redis for queues and caching
   redis:
-    image: redis:7-alpine
+    image: redis:latest
     container_name: ocrbase-redis
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:

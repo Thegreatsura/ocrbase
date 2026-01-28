@@ -27,11 +27,12 @@ FROM gcr.io/distroless/base-debian12:nonroot
 
 WORKDIR /app
 
-# Copy the compiled binary
+# Copy the compiled binaries
 COPY --from=builder /app/apps/server/server /app/server
+COPY --from=builder /app/apps/server/worker /app/worker
 
 # Expose port
 EXPOSE 3000
 
-# Run the server
+# Default to server (override with CMD ["./worker"] for worker)
 CMD ["./server"]
