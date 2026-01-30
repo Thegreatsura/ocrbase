@@ -38,6 +38,9 @@ COPY --from=builder /app/packages/db /app/packages/db
 COPY --from=builder /app/packages/env /app/packages/env
 COPY --from=builder /app/node_modules /app/node_modules
 
+# Copy server source files for OpenAPI schema generation
+COPY --from=builder /app/apps/server/src /app/apps/server/src
+
 # Copy entrypoint script
 COPY apps/server/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
