@@ -8,45 +8,64 @@ import { Elysia } from "elysia";
 
 import type { WideEventContext } from "../lib/wide-event";
 
-import { apiKeyPlugin } from "./api-key";
+import { type ApiKeyInfo, validateApiKey } from "../lib/api-key";
 
 type Organization = Awaited<ReturnType<typeof auth.api.getFullOrganization>>;
 
-export const authPlugin = new Elysia({ name: "auth" }).use(apiKeyPlugin).derive(
+export const authPlugin = new Elysia({ name: "auth" }).derive(
   { as: "global" },
+  // eslint-disable-next-line complexity
   async ({
-    apiKey,
-    apiKeyAuth,
     request,
     wideEvent,
   }: {
-    apiKey?: {
-      id: string;
-      name: string;
-      organizationId: string;
-      userId: string;
-    } | null;
-    apiKeyAuth?: boolean;
     request: Request;
     wideEvent?: WideEventContext;
   }): Promise<{
+    apiKey: ApiKeyInfo | null;
     organization: Organization | null;
     session: Session | null;
     user: User | null;
   }> => {
-    // If API key auth succeeded, fetch real user/org from DB
-    if (apiKeyAuth && apiKey) {
+    const authHeader = request.headers.get("authorization");
+    const hasApiKeyToken =
+      authHeader?.toLowerCase().startsWith("bearer sk_") ?? false;
+
+    // API key authentication
+    if (hasApiKeyToken) {
+      const apiKey = await validateApiKey(authHeader);
+      if (!apiKey) {
+        return {
+          apiKey: null,
+          organization: null,
+          session: null,
+          user: null,
+        };
+      }
+
       const [dbUser] = await db
         .select()
         .from(user)
         .where(eq(user.id, apiKey.userId));
-      const [dbOrg] = await db
+
+      if (!dbUser) {
+        return { apiKey: null, organization: null, session: null, user: null };
+      }
+
+      // Find organization
+      let [dbOrg] = await db
         .select()
         .from(organization)
         .where(eq(organization.id, apiKey.organizationId));
 
-      if (!dbUser) {
-        return { organization: null, session: null, user: null };
+      if (!dbOrg) {
+        const [membership] = await db
+          .select({ org: organization })
+          .from(member)
+          .innerJoin(organization, eq(member.organizationId, organization.id))
+          .where(eq(member.userId, apiKey.userId))
+          .limit(1);
+        dbOrg = membership?.org;
       }
 
       wideEvent?.setUser({ id: dbUser.id });
@@ -55,6 +74,7 @@ export const authPlugin = new Elysia({ name: "auth" }).use(apiKeyPlugin).derive(
       }
 
       return {
+        apiKey,
         organization: dbOrg
           ? {
               createdAt: dbOrg.createdAt,
@@ -81,53 +101,39 @@ export const authPlugin = new Elysia({ name: "auth" }).use(apiKeyPlugin).derive(
       };
     }
 
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
+    // Session authentication
+    const session = await auth.api.getSession({ headers: request.headers });
     if (!session) {
-      return {
-        organization: null,
-        session: null,
-        user: null,
-      };
+      return { apiKey: null, organization: null, session: null, user: null };
     }
 
     wideEvent?.setUser({ id: session.user.id });
 
-    // Try to get the active organization first
+    // Resolve organization
     let activeOrg = await auth.api.getFullOrganization({
       headers: request.headers,
     });
 
-    // If no active org, check header
-    if (!activeOrg) {
-      const orgId = request.headers.get("x-organization-id");
-      if (orgId) {
-        activeOrg = await auth.api.getFullOrganization({
-          headers: request.headers,
-          query: { organizationId: orgId },
-        });
-      }
+    const orgId = request.headers.get("x-organization-id");
+    if (!activeOrg && orgId) {
+      activeOrg = await auth.api.getFullOrganization({
+        headers: request.headers,
+        query: { organizationId: orgId },
+      });
     }
 
-    // If still no org, find the first organization the user is a member of
     if (!activeOrg) {
-      const userMembership = await db
-        .select({
-          organization: organization,
-        })
+      const [membership] = await db
+        .select({ organization: organization })
         .from(member)
         .innerJoin(organization, eq(member.organizationId, organization.id))
         .where(eq(member.userId, session.user.id))
         .limit(1);
 
-      const [firstMembership] = userMembership;
-      if (firstMembership) {
-        // Get full organization details using the API
+      if (membership) {
         activeOrg = await auth.api.getFullOrganization({
           headers: request.headers,
-          query: { organizationId: firstMembership.organization.id },
+          query: { organizationId: membership.organization.id },
         });
       }
     }
@@ -137,6 +143,7 @@ export const authPlugin = new Elysia({ name: "auth" }).use(apiKeyPlugin).derive(
     }
 
     return {
+      apiKey: null,
       organization: activeOrg,
       session: session.session,
       user: session.user,

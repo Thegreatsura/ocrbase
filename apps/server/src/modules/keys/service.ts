@@ -50,27 +50,31 @@ export const KeyService = {
     };
   },
 
-  async delete(id: string): Promise<boolean> {
+  async delete(id: string, organizationId: string): Promise<boolean> {
     const result = await db
       .delete(apiKeys)
-      .where(eq(apiKeys.id, id))
+      .where(
+        and(eq(apiKeys.id, id), eq(apiKeys.organizationId, organizationId))
+      )
       .returning({ id: apiKeys.id });
 
     return result.length > 0;
   },
 
-  async getById(id: string) {
+  async getById(id: string, organizationId: string) {
     const [key] = await db
       .select()
       .from(apiKeys)
-      .where(eq(apiKeys.id, id))
+      .where(
+        and(eq(apiKeys.id, id), eq(apiKeys.organizationId, organizationId))
+      )
       .limit(1);
 
     return key ?? null;
   },
 
-  async getUsage(id: string) {
-    const key = await this.getById(id);
+  async getUsage(id: string, organizationId: string) {
+    const key = await this.getById(id, organizationId);
 
     if (!key) {
       return null;
@@ -158,11 +162,13 @@ export const KeyService = {
       .orderBy(desc(apiKeys.createdAt));
   },
 
-  async revoke(id: string): Promise<boolean> {
+  async revoke(id: string, organizationId: string): Promise<boolean> {
     const result = await db
       .update(apiKeys)
       .set({ isActive: false })
-      .where(eq(apiKeys.id, id))
+      .where(
+        and(eq(apiKeys.id, id), eq(apiKeys.organizationId, organizationId))
+      )
       .returning({ id: apiKeys.id });
 
     return result.length > 0;

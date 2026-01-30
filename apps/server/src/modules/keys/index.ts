@@ -90,9 +90,14 @@ export const keysRoutes = new Elysia({ prefix: "/api/keys" })
   )
   .get(
     "/:id",
-    async ({ params, set }) => {
+    async ({ params, organization, set, user }) => {
+      if (!user || !organization) {
+        set.status = 401;
+        return { message: "Unauthorized" };
+      }
+
       try {
-        const usage = await KeyService.getUsage(params.id);
+        const usage = await KeyService.getUsage(params.id, organization.id);
 
         if (!usage) {
           set.status = 404;
@@ -137,9 +142,14 @@ export const keysRoutes = new Elysia({ prefix: "/api/keys" })
   )
   .post(
     "/:id/revoke",
-    async ({ params, set }) => {
+    async ({ params, organization, set, user }) => {
+      if (!user || !organization) {
+        set.status = 401;
+        return { message: "Unauthorized" };
+      }
+
       try {
-        const revoked = await KeyService.revoke(params.id);
+        const revoked = await KeyService.revoke(params.id, organization.id);
 
         if (!revoked) {
           set.status = 404;
@@ -164,9 +174,14 @@ export const keysRoutes = new Elysia({ prefix: "/api/keys" })
   )
   .delete(
     "/:id",
-    async ({ params, set }) => {
+    async ({ params, organization, set, user }) => {
+      if (!user || !organization) {
+        set.status = 401;
+        return { message: "Unauthorized" };
+      }
+
       try {
-        const deleted = await KeyService.delete(params.id);
+        const deleted = await KeyService.delete(params.id, organization.id);
 
         if (!deleted) {
           set.status = 404;

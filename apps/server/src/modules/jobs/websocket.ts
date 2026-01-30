@@ -1,40 +1,15 @@
 import { auth } from "@ocrbase/auth";
 import { db } from "@ocrbase/db";
-import { apiKeys } from "@ocrbase/db/schema/api-keys";
 import { jobs } from "@ocrbase/db/schema/jobs";
 import { and, eq } from "drizzle-orm";
 import { Elysia } from "elysia";
 
-import { hashApiKey } from "../../lib/api-key";
+import { validateApiKey } from "../../lib/api-key";
 import {
   subscribeToJob,
   unsubscribeFromJob,
   type JobUpdateMessage,
 } from "../../services/websocket";
-
-interface ApiKeyAuth {
-  userId: string;
-  organizationId: string;
-}
-
-const getApiKeyAuth = async (
-  authHeader: string | undefined
-): Promise<ApiKeyAuth | null> => {
-  if (!authHeader?.startsWith("Bearer ")) {
-    return null;
-  }
-
-  const token = authHeader.slice(7);
-  const keyHash = await hashApiKey(token);
-
-  const [key] = await db
-    .select({ organizationId: apiKeys.organizationId, userId: apiKeys.userId })
-    .from(apiKeys)
-    .where(and(eq(apiKeys.keyHash, keyHash), eq(apiKeys.isActive, true)))
-    .limit(1);
-
-  return key ?? null;
-};
 
 interface WebSocketData {
   jobId: string;
@@ -71,8 +46,10 @@ export const jobsWebSocket = new Elysia().ws("/ws/jobs/:jobId", {
     let userId: string;
     let organizationId: string;
 
-    // Try API key auth first
-    const apiKeyAuth = await getApiKeyAuth(ws.data.headers?.authorization);
+    // Try API key auth first (skip usage tracking for websocket)
+    const apiKeyAuth = await validateApiKey(ws.data.headers?.authorization, {
+      updateUsage: false,
+    });
     if (apiKeyAuth) {
       ({ userId } = apiKeyAuth);
       ({ organizationId } = apiKeyAuth);

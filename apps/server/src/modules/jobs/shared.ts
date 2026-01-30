@@ -70,6 +70,8 @@ export const createJobHandler = async <
     return { message: "Unauthorized" };
   }
 
+  const organizationId = organization.id;
+
   try {
     const hasValidUrl =
       typeof body.url === "string" &&
@@ -84,7 +86,7 @@ export const createJobHandler = async <
           type: options.type,
           url: body.url,
         },
-        organizationId: organization.id,
+        organizationId,
         userId: user.id,
       });
 
@@ -118,7 +120,7 @@ export const createJobHandler = async <
         size: file.size,
         type: file.type,
       },
-      organizationId: organization.id,
+      organizationId,
       userId: user.id,
     });
 
