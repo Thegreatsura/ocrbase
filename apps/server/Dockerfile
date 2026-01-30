@@ -22,8 +22,8 @@ COPY . .
 WORKDIR /app/apps/server
 RUN bun run compile
 
-# Production stage - using distroless for minimal attack surface
-FROM gcr.io/distroless/base-debian12:nonroot
+# Production stage - using bun slim for db migrations support
+FROM oven/bun:1-slim
 
 WORKDIR /app
 
@@ -31,8 +31,20 @@ WORKDIR /app
 COPY --from=builder /app/apps/server/server /app/server
 COPY --from=builder /app/apps/server/worker /app/worker
 
+# Copy files needed for db:push
+COPY --from=builder /app/package.json /app/package.json
+COPY --from=builder /app/bun.lock /app/bun.lock
+COPY --from=builder /app/packages/db /app/packages/db
+COPY --from=builder /app/packages/env /app/packages/env
+COPY --from=builder /app/node_modules /app/node_modules
+
+# Copy entrypoint script
+COPY apps/server/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 # Expose port
 EXPOSE 3000
 
-# Default to server (override with CMD ["./worker"] for worker)
-CMD ["./server"]
+# Default to server (override with CMD ["worker"] for worker)
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["server"]
