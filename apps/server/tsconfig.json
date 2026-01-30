@@ -1,9 +1,7 @@
 {
   "extends": "@ocrbase/config/tsconfig.base.json",
   "compilerOptions": {
-    "composite": true,
     "outDir": "dist",
-    "declarationDir": "dist",
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
