@@ -1,5 +1,5 @@
 {
-  "name": "@ocrbase/sdk",
+  "name": "ocrbase",
   "version": "0.1.0",
   "files": [
     "dist"
