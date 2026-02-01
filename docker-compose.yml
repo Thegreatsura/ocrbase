@@ -62,12 +62,22 @@ services:
       exit 0;
       "
 
-  # PaddleOCR services (optional - requires NVIDIA GPU)
+  # PaddleOCR-VL 1.5 services (optional - requires NVIDIA GPU with CC >= 8.0)
   # Enable with: docker compose --profile gpu up
+  # Note: RTX 30/40/50 series, A10/A100+ recommended. T4/V100 may have issues.
   paddleocr-vlm-server:
-    image: registry.baidubce.com/paddlepaddle/paddleocr:paddleocr-vl-gpu-vllm-latest
+    image: ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-genai-vllm-server:latest-nvidia-gpu
     container_name: ocrbase-paddleocr-vlm
     profiles: ["gpu"]
+    command: >
+      paddleocr genai_server
+      --model_name PaddleOCR-VL-1.5-0.9B
+      --host 0.0.0.0
+      --port 8000
+      --backend vllm
+      --backend_config /config/vllm_config.yaml
+    volumes:
+      - ./docker/paddleocr/vllm_config.yaml:/config/vllm_config.yaml:ro
     deploy:
       resources:
         reservations:
@@ -84,19 +94,13 @@ services:
       start_period: 300s
 
   paddleocr-vl-api:
-    image: registry.baidubce.com/paddlepaddle/paddleocr:paddleocr-vl-gpu-latest
+    image: ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-vl:latest-nvidia-gpu
     container_name: ocrbase-paddleocr-api
     profiles: ["gpu"]
     ports:
       - "8080:8080"
-    environment:
-      VLM_BACKEND: vllm
-    command: >
-      paddlex_serving
-      --pipeline_config /root/.paddlex/pipelines/OCR_VL/pipeline.yaml
-      --port 8080
-      --vlm_backend vllm
-      --vlm_url http://paddleocr-vlm-server:8000
+    volumes:
+      - ./docker/paddleocr/pipeline_config_vllm.yaml:/home/paddleocr/pipeline_config_vllm.yaml:ro
     deploy:
       resources:
         reservations:

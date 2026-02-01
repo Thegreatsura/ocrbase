@@ -45,9 +45,15 @@ PADDLE_OCR_URL=https://your-paddleocr-instance.com
 
 ### Option 2: Self-Host with GPU
 
-**Requirements:** NVIDIA GPU with CUDA 12.6+, Docker with NVIDIA runtime
+**Requirements:**
 
-Start everything including PaddleOCR:
+- NVIDIA GPU with Compute Capability >= 8.0 (RTX 30/40/50 series, A10/A100+)
+- CUDA 12.6+ with NVIDIA Container Toolkit
+- ~12GB VRAM recommended (works with RTX 3060 12GB)
+
+> **Note:** GPUs with CC 7.x (T4/V100) may experience timeout or OOM issues and are not recommended.
+
+Start everything including PaddleOCR-VL 1.5:
 
 ```bash
 docker compose --profile gpu up -d
@@ -56,9 +62,11 @@ docker compose --profile gpu up -d
 This will start:
 
 - PostgreSQL, Redis, MinIO (core infrastructure)
-- PaddleOCR VLM server + API (GPU-accelerated OCR)
+- PaddleOCR-VL 1.5 VLM server (vLLM backend) + Pipeline API
 
 Wait for "Application startup complete" - PaddleOCR will be available at `http://localhost:8080`.
+
+The first startup will download models (~2GB) which may take a few minutes.
 
 Then set in `.env`:
 
@@ -175,6 +183,6 @@ ocrbase/
 | Database      | PostgreSQL + [Drizzle ORM](https://orm.drizzle.team/)         |
 | Queue         | Redis + [BullMQ](https://bullmq.io/)                          |
 | Storage       | S3/MinIO                                                      |
-| OCR           | [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)        |
+| OCR           | [PaddleOCR-VL 1.5](https://github.com/PaddlePaddle/PaddleOCR) |
 | Auth          | [Better-Auth](https://better-auth.com/)                       |
 | Build         | [Turborepo](https://turbo.build/)                             |
