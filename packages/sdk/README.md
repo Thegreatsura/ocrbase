@@ -2,6 +2,8 @@
 
 Type-safe SDK for ocrbase - document parsing and data extraction API.
 
+> **API URL:** `https://api.ocrbase.dev` (default, no configuration needed)
+
 ## Installation
 
 ```bash
@@ -17,6 +19,8 @@ OCRBASE_API_KEY=sk_xxx
 
 ## Quick Start
 
+**Important:** Jobs are processed asynchronously. The `parse()` and `extract()` functions wait for completion by default.
+
 ```typescript
 import { createClient } from "ocrbase";
 
@@ -24,16 +28,16 @@ const { parse, extract } = createClient({
   apiKey: process.env.OCRBASE_API_KEY,
 });
 
-// Parse document to markdown
+// Parse document to markdown (waits for completion)
 const job = await parse({ file: document });
-console.log(job.markdownResult);
+console.log(job.markdownResult); // string - the parsed markdown
 
-// Extract structured data
+// Extract structured data (waits for completion)
 const extracted = await extract({
   file: invoice,
   hints: "invoice number, date, total, line items",
 });
-console.log(extracted.jsonResult);
+console.log(extracted.jsonResult); // object - the extracted data
 ```
 
 ## Core API
@@ -41,18 +45,39 @@ console.log(extracted.jsonResult);
 ### Parse - Document to Markdown
 
 ```typescript
-const { parse } = createClient({ apiKey: process.env.OCRBASE_API_KEY });
+const { parse, jobs } = createClient({ apiKey: process.env.OCRBASE_API_KEY });
 
-// From file
+// From file (waits for completion)
 const job = await parse({ file: myFile });
 
-// From URL
+// From URL (waits for completion)
 const job = await parse({ url: "https://example.com/document.pdf" });
 
 // Result
 job.id; // "job_abc123"
 job.status; // "completed"
 job.markdownResult; // "# Document Title\n\nContent..."
+```
+
+### Server-Side Polling
+
+For more control over async flow (e.g., in API routes), use polling:
+
+```typescript
+const { parse, jobs } = createClient({ apiKey: process.env.OCRBASE_API_KEY });
+
+// Start parsing (returns immediately with pending job)
+const job = await parse({ file: myFile });
+// job.status === "pending", job.markdownResult === null
+
+// Poll until complete
+let result = job;
+while (result.status !== "completed" && result.status !== "failed") {
+  await new Promise((r) => setTimeout(r, 1000)); // wait 1s
+  result = await jobs.get(job.id);
+}
+
+console.log(result.markdownResult); // now available
 ```
 
 ### Extract - Document to Structured Data
@@ -127,7 +152,9 @@ const generated = await schemas.generate({
 });
 ```
 
-### WebSocket - Real-time Job Updates
+### WebSocket - Real-time Job Updates (Client-Side Only)
+
+**Note:** WebSocket requires browser context. For server-side (API routes, Node.js scripts), use polling with `jobs.get()` instead.
 
 ```typescript
 const { ws } = createClient({ apiKey: process.env.OCRBASE_API_KEY });
@@ -330,15 +357,19 @@ try {
 import { createClient } from "ocrbase";
 import OpenAI from "openai";
 
-const ocrbase = createClient({ apiKey: process.env.OCRBASE_API_KEY });
+const { parse } = createClient({ apiKey: process.env.OCRBASE_API_KEY });
 const openai = new OpenAI();
 
-const { markdownResult } = await ocrbase.parse({ file: pdfFile });
+// Parse PDF to markdown (waits for completion)
+const job = await parse({ file: pdfFile });
 
 const response = await openai.chat.completions.create({
   model: "gpt-4o",
   messages: [
-    { role: "user", content: `Summarize this document:\n\n${markdownResult}` },
+    {
+      role: "user",
+      content: `Summarize this document:\n\n${job.markdownResult}`,
+    },
   ],
 });
 ```
@@ -350,13 +381,13 @@ import { createClient } from "ocrbase";
 import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
 
-const ocrbase = createClient({ apiKey: process.env.OCRBASE_API_KEY });
+const { parse } = createClient({ apiKey: process.env.OCRBASE_API_KEY });
 
-const { markdownResult } = await ocrbase.parse({ file: pdfFile });
+const job = await parse({ file: pdfFile });
 
 const { text } = await generateText({
   model: openai("gpt-4o"),
-  prompt: `Extract key points:\n\n${markdownResult}`,
+  prompt: `Extract key points:\n\n${job.markdownResult}`,
 });
 ```
 
@@ -366,17 +397,17 @@ const { text } = await generateText({
 import { createClient } from "ocrbase";
 import OpenAI from "openai";
 
-const ocrbase = createClient({ apiKey: process.env.OCRBASE_API_KEY });
+const { parse } = createClient({ apiKey: process.env.OCRBASE_API_KEY });
 const openrouter = new OpenAI({
   baseURL: "https://openrouter.ai/api/v1",
   apiKey: process.env.OPENROUTER_API_KEY,
 });
 
-const { markdownResult } = await ocrbase.parse({ file: pdfFile });
+const job = await parse({ file: pdfFile });
 
 const response = await openrouter.chat.completions.create({
   model: "anthropic/claude-sonnet-4",
-  messages: [{ role: "user", content: `Analyze:\n\n${markdownResult}` }],
+  messages: [{ role: "user", content: `Analyze:\n\n${job.markdownResult}` }],
 });
 ```
 
