@@ -6,9 +6,9 @@ import { member, organization, user } from "@ocrbase/db/schema/auth";
 import { eq } from "drizzle-orm";
 import { Elysia } from "elysia";
 
-import type { WideEventContext } from "../lib/wide-event";
+import type { WideEventContext } from "@/lib/wide-event";
 
-import { type ApiKeyInfo, validateApiKey } from "../lib/api-key";
+import { type ApiKeyInfo, validateApiKey } from "@/lib/api-key";
 
 type Organization = Awaited<ReturnType<typeof auth.api.getFullOrganization>>;
 

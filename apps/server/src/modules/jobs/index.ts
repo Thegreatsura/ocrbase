@@ -1,6 +1,7 @@
 import { Elysia, t } from "elysia";
 
-import { requireAuth } from "../../plugins/auth";
+import { requireAuth } from "@/plugins/auth";
+
 import { JobService } from "./service";
 import { formatJobResponse, getErrorMessage, getWideEvent } from "./shared";
 

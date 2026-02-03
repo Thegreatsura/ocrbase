@@ -1,6 +1,7 @@
 import { Elysia, t } from "elysia";
 
-import { requireAuth } from "../../plugins/auth";
+import { requireAuth } from "@/plugins/auth";
+
 import { KeyModel } from "./model";
 import { KeyService } from "./service";
 

@@ -2,9 +2,9 @@ import { db } from "@ocrbase/db";
 import { schemas } from "@ocrbase/db/schema/schemas";
 import { and, eq, sql } from "drizzle-orm";
 
-import type { CreateSchemaBody, UpdateSchemaBody } from "./model";
+import { llmService } from "@/services/llm";
 
-import { llmService } from "../../services/llm";
+import type { CreateSchemaBody, UpdateSchemaBody } from "./model";
 
 export interface GeneratedSchemaResult {
   suggestedName: string;

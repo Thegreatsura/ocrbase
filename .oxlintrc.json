@@ -30,6 +30,18 @@
       "rules": {
         "jest/require-hook": "error"
       }
+    },
+    {
+      "files": ["apps/server/**/*.ts"],
+      "rules": {
+        "import/no-nodejs-modules": "off"
+      }
+    },
+    {
+      "files": ["**/scripts/**/*.ts"],
+      "rules": {
+        "import/no-relative-parent-imports": "off"
+      }
     }
   ]
 }

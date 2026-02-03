@@ -4,10 +4,10 @@ import { db } from "@ocrbase/db";
 import { jobs, type Job } from "@ocrbase/db/schema/jobs";
 import { and, asc, count, desc, eq } from "drizzle-orm";
 
-import type { CreateJobBody, ListJobsQuery, PaginationMeta } from "./model";
+import { addJob } from "@/services/queue";
+import { StorageService } from "@/services/storage";
 
-import { addJob } from "../../services/queue";
-import { StorageService } from "../../services/storage";
+import type { CreateJobBody, ListJobsQuery, PaginationMeta } from "./model";
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;

@@ -3,7 +3,8 @@ import { jobs } from "@ocrbase/db/schema/jobs";
 import { eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 
-import { requireAuth } from "../../plugins/auth";
+import { requireAuth } from "@/plugins/auth";
+
 import { SchemaModel } from "./model";
 import { SchemaService } from "./service";
 

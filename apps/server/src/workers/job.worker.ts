@@ -6,12 +6,12 @@ import {
   getJobById,
   updateJobFileInfo,
   updateJobStatus,
-} from "../lib/job-status";
-import { type WorkerJobContext, workerLogger } from "../lib/worker-logger";
-import { llmService } from "../services/llm";
-import { parseDocument } from "../services/ocr";
-import { type JobData, getWorkerConnection } from "../services/queue";
-import { StorageService } from "../services/storage";
+} from "@/lib/job-status";
+import { type WorkerJobContext, workerLogger } from "@/lib/worker-logger";
+import { llmService } from "@/services/llm";
+import { parseDocument } from "@/services/ocr";
+import { type JobData, getWorkerConnection } from "@/services/queue";
+import { StorageService } from "@/services/storage";
 
 const runExtraction = async (
   jobId: string,

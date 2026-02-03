@@ -5,9 +5,9 @@ import { apiKeyUsageDaily, usageEvents } from "@ocrbase/db/schema/api-keys";
 import { jobs } from "@ocrbase/db/schema/jobs";
 import { eq, sql } from "drizzle-orm";
 
-import type { LlmUsage } from "../services/llm";
+import type { LlmUsage } from "@/services/llm";
 
-import { publishJobUpdate } from "../services/websocket";
+import { publishJobUpdate } from "@/services/websocket";
 
 interface UpdateData {
   status?: JobStatus;

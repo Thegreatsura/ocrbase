@@ -1,6 +1,7 @@
 import type { Job } from "@ocrbase/db/schema/jobs";
 
-import type { WideEventContext } from "../../lib/wide-event";
+import type { WideEventContext } from "@/lib/wide-event";
+
 import type { JobResponse } from "./model";
 
 import { JobService } from "./service";

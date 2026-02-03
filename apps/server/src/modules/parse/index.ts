@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 
-import { requireAuth } from "../../plugins/auth";
-import { createJobHandler, getWideEvent } from "../jobs/shared";
+import { createJobHandler, getWideEvent } from "@/modules/jobs/shared";
+import { requireAuth } from "@/plugins/auth";
 
 export const parseRoutes = new Elysia({ prefix: "/api/parse" })
   .use(requireAuth)

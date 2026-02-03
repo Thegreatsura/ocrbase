@@ -2,10 +2,10 @@ import { db } from "@ocrbase/db";
 import { sql } from "drizzle-orm";
 import { Elysia } from "elysia";
 
-import { checkLlmHealth } from "../../services/llm";
-import { checkOcrHealth } from "../../services/ocr";
-import { checkQueueHealth } from "../../services/queue";
-import { checkStorageHealth } from "../../services/storage";
+import { checkLlmHealth } from "@/services/llm";
+import { checkOcrHealth } from "@/services/ocr";
+import { checkQueueHealth } from "@/services/queue";
+import { checkStorageHealth } from "@/services/storage";
 
 export interface HealthCheck {
   database: boolean;

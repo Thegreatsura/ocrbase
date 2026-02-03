@@ -1,9 +1,10 @@
 import { Elysia } from "elysia";
 import { nanoid } from "nanoid";
 
-import { envContext } from "../lib/env-context";
-import { posthog } from "../lib/posthog";
-import { WideEventContext } from "../lib/wide-event";
+import { envContext } from "@/lib/env-context";
+import { posthog } from "@/lib/posthog";
+import { WideEventContext } from "@/lib/wide-event";
+
 import { logger } from "./logging";
 
 const createRequestId = (): string => `req_${nanoid(12)}`;

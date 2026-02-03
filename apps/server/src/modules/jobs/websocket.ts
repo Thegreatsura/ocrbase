@@ -4,12 +4,12 @@ import { jobs } from "@ocrbase/db/schema/jobs";
 import { and, eq } from "drizzle-orm";
 import { Elysia } from "elysia";
 
-import { validateApiKey } from "../../lib/api-key";
+import { validateApiKey } from "@/lib/api-key";
 import {
   subscribeToJob,
   unsubscribeFromJob,
   type JobUpdateMessage,
-} from "../../services/websocket";
+} from "@/services/websocket";
 
 interface WebSocketData {
   jobId: string;

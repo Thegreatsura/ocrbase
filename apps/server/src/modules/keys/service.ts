@@ -2,7 +2,7 @@ import { db } from "@ocrbase/db";
 import { apiKeys, apiKeyUsage } from "@ocrbase/db/schema/api-keys";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 
-import { generateApiKey, getKeyPrefix, hashApiKey } from "../../lib/api-key";
+import { generateApiKey, getKeyPrefix, hashApiKey } from "@/lib/api-key";
 
 export const KeyService = {
   async create({
