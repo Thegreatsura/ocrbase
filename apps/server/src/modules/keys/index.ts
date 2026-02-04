@@ -1,5 +1,6 @@
 import { Elysia, t } from "elysia";
 
+import { IdPatterns } from "@/lib/openapi";
 import { requireAuth } from "@/plugins/auth";
 
 import { KeyModel } from "./model";
@@ -62,7 +63,18 @@ export const keysRoutes = new Elysia({ prefix: "/api/keys" })
     {
       body: KeyModel.createBody,
       detail: {
-        description: "Create a new API key",
+        description: `Create a new API key for programmatic access.
+
+The full API key is only returned once at creation time. Store it securely.
+Keys can be revoked or deleted at any time.`,
+        responses: {
+          201: {
+            description: "API key created (includes full key, only shown once)",
+          },
+          401: { description: "Unauthorized - Invalid or missing API key" },
+          429: { description: "Too Many Requests - Rate limit exceeded" },
+          500: { description: "Internal Server Error" },
+        },
         tags: ["Keys"],
       },
     }
@@ -84,7 +96,15 @@ export const keysRoutes = new Elysia({ prefix: "/api/keys" })
     },
     {
       detail: {
-        description: "List all API keys",
+        description: `List all API keys for the current organization.
+
+Returns key metadata including prefix, status, and usage statistics. Full keys are never returned after creation.`,
+        responses: {
+          200: { description: "List of API keys" },
+          401: { description: "Unauthorized - Invalid or missing API key" },
+          429: { description: "Too Many Requests - Rate limit exceeded" },
+          500: { description: "Internal Server Error" },
+        },
         tags: ["Keys"],
       },
     }
@@ -133,11 +153,24 @@ export const keysRoutes = new Elysia({ prefix: "/api/keys" })
     },
     {
       detail: {
-        description: "Get API key details and usage statistics",
+        description: `Get detailed information and usage statistics for an API key.
+
+Includes recent request history, total request count, and aggregated stats.`,
+        responses: {
+          200: { description: "API key details with usage statistics" },
+          401: { description: "Unauthorized - Invalid or missing API key" },
+          404: { description: "Not Found - API key does not exist" },
+          429: { description: "Too Many Requests - Rate limit exceeded" },
+          500: { description: "Internal Server Error" },
+        },
         tags: ["Keys"],
       },
       params: t.Object({
-        id: t.String(),
+        id: t.String({
+          description: "API key ID",
+          examples: ["key_abc123xyz"],
+          pattern: IdPatterns.key,
+        }),
       }),
     }
   )
@@ -165,11 +198,24 @@ export const keysRoutes = new Elysia({ prefix: "/api/keys" })
     },
     {
       detail: {
-        description: "Revoke an API key (disable without deleting)",
+        description: `Revoke an API key without deleting it.
+
+The key will immediately stop working but usage history is preserved. This action can be reversed by contacting support.`,
+        responses: {
+          200: { description: "API key revoked successfully" },
+          401: { description: "Unauthorized - Invalid or missing API key" },
+          404: { description: "Not Found - API key does not exist" },
+          429: { description: "Too Many Requests - Rate limit exceeded" },
+          500: { description: "Internal Server Error" },
+        },
         tags: ["Keys"],
       },
       params: t.Object({
-        id: t.String(),
+        id: t.String({
+          description: "API key ID",
+          examples: ["key_abc123xyz"],
+          pattern: IdPatterns.key,
+        }),
       }),
     }
   )
@@ -197,11 +243,24 @@ export const keysRoutes = new Elysia({ prefix: "/api/keys" })
     },
     {
       detail: {
-        description: "Permanently delete an API key",
+        description: `Permanently delete an API key and all usage history.
+
+This action cannot be undone. The key will immediately stop working.`,
+        responses: {
+          200: { description: "API key deleted successfully" },
+          401: { description: "Unauthorized - Invalid or missing API key" },
+          404: { description: "Not Found - API key does not exist" },
+          429: { description: "Too Many Requests - Rate limit exceeded" },
+          500: { description: "Internal Server Error" },
+        },
         tags: ["Keys"],
       },
       params: t.Object({
-        id: t.String(),
+        id: t.String({
+          description: "API key ID",
+          examples: ["key_abc123xyz"],
+          pattern: IdPatterns.key,
+        }),
       }),
     }
   );

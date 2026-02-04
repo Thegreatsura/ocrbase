@@ -36,26 +36,69 @@ export const jobsRoutes = new Elysia({ prefix: "/api/jobs" })
     },
     {
       detail: {
-        description: "List jobs with filtering, sorting, and pagination",
+        description: `List all jobs with filtering, sorting, and pagination.
+
+Filter by status (pending, processing, extracting, completed, failed) or type (parse, extract).
+Results are paginated with configurable page size (max 100).`,
+        responses: {
+          200: { description: "List of jobs with pagination metadata" },
+          401: { description: "Unauthorized - Invalid or missing API key" },
+          429: { description: "Too Many Requests - Rate limit exceeded" },
+          500: { description: "Internal Server Error" },
+        },
         tags: ["Jobs"],
       },
       query: t.Object({
-        limit: t.Optional(t.Numeric({ default: 20, maximum: 100, minimum: 1 })),
-        page: t.Optional(t.Numeric({ default: 1, minimum: 1 })),
+        limit: t.Optional(
+          t.Numeric({
+            default: 20,
+            description: "Number of results per page (1-100)",
+            examples: [20],
+            maximum: 100,
+            minimum: 1,
+          })
+        ),
+        page: t.Optional(
+          t.Numeric({
+            default: 1,
+            description: "Page number",
+            examples: [1],
+            minimum: 1,
+          })
+        ),
         sortBy: t.Optional(
-          t.Union([t.Literal("createdAt"), t.Literal("updatedAt")])
+          t.Union([t.Literal("createdAt"), t.Literal("updatedAt")], {
+            description: "Field to sort by",
+            examples: ["createdAt"],
+          })
         ),
-        sortOrder: t.Optional(t.Union([t.Literal("asc"), t.Literal("desc")])),
+        sortOrder: t.Optional(
+          t.Union([t.Literal("asc"), t.Literal("desc")], {
+            description: "Sort direction",
+            examples: ["desc"],
+          })
+        ),
         status: t.Optional(
-          t.Union([
-            t.Literal("pending"),
-            t.Literal("processing"),
-            t.Literal("extracting"),
-            t.Literal("completed"),
-            t.Literal("failed"),
-          ])
+          t.Union(
+            [
+              t.Literal("pending"),
+              t.Literal("processing"),
+              t.Literal("extracting"),
+              t.Literal("completed"),
+              t.Literal("failed"),
+            ],
+            {
+              description: "Filter by job status",
+              examples: ["completed"],
+            }
+          )
         ),
-        type: t.Optional(t.Union([t.Literal("parse"), t.Literal("extract")])),
+        type: t.Optional(
+          t.Union([t.Literal("parse"), t.Literal("extract")], {
+            description: "Filter by job type",
+            examples: ["parse"],
+          })
+        ),
       }),
     }
   )
@@ -97,11 +140,25 @@ export const jobsRoutes = new Elysia({ prefix: "/api/jobs" })
     },
     {
       detail: {
-        description: "Get job details and status",
+        description: `Get detailed information about a specific job.
+
+Returns job status, metadata, processing times, and results (if completed).
+For completed jobs, includes markdownResult and jsonResult (if extraction schema was used).`,
+        responses: {
+          200: { description: "Job details" },
+          401: { description: "Unauthorized - Invalid or missing API key" },
+          404: { description: "Not Found - Job does not exist" },
+          429: { description: "Too Many Requests - Rate limit exceeded" },
+          500: { description: "Internal Server Error" },
+        },
         tags: ["Jobs"],
       },
       params: t.Object({
-        id: t.String(),
+        id: t.String({
+          description: "Job ID",
+          examples: ["job_abc123xyz"],
+          pattern: "^job_[a-zA-Z0-9_-]+$",
+        }),
       }),
     }
   )
@@ -132,7 +189,7 @@ export const jobsRoutes = new Elysia({ prefix: "/api/jobs" })
 
         await JobService.delete(organization.id, user.id, params.id);
 
-        return { message: "Job deleted successfully" };
+        return { success: true };
       } catch (error) {
         set.status = 500;
         return { message: getErrorMessage(error, "Failed to delete job") };
@@ -140,11 +197,24 @@ export const jobsRoutes = new Elysia({ prefix: "/api/jobs" })
     },
     {
       detail: {
-        description: "Delete a job and its associated data",
+        description: `Permanently delete a job and all associated data.
+
+This action cannot be undone. Deletes the job record, uploaded file, and any generated results.`,
+        responses: {
+          200: { description: "Job deleted successfully" },
+          401: { description: "Unauthorized - Invalid or missing API key" },
+          404: { description: "Not Found - Job does not exist" },
+          429: { description: "Too Many Requests - Rate limit exceeded" },
+          500: { description: "Internal Server Error" },
+        },
         tags: ["Jobs"],
       },
       params: t.Object({
-        id: t.String(),
+        id: t.String({
+          description: "Job ID",
+          examples: ["job_abc123xyz"],
+          pattern: "^job_[a-zA-Z0-9_-]+$",
+        }),
       }),
     }
   )
@@ -185,14 +255,37 @@ export const jobsRoutes = new Elysia({ prefix: "/api/jobs" })
     },
     {
       detail: {
-        description: "Download job result as markdown or JSON",
+        description: `Download the job result as a file.
+
+Choose between markdown (.md) or JSON (.json) format. JSON format is only available for jobs with extraction schemas.`,
+        responses: {
+          200: { description: "File download (markdown or JSON)" },
+          400: {
+            description:
+              "Bad Request - Job not completed or JSON not available",
+          },
+          401: { description: "Unauthorized - Invalid or missing API key" },
+          404: { description: "Not Found - Job does not exist" },
+          429: { description: "Too Many Requests - Rate limit exceeded" },
+          500: { description: "Internal Server Error" },
+        },
         tags: ["Jobs"],
       },
       params: t.Object({
-        id: t.String(),
+        id: t.String({
+          description: "Job ID",
+          examples: ["job_abc123xyz"],
+          pattern: "^job_[a-zA-Z0-9_-]+$",
+        }),
       }),
       query: t.Object({
-        format: t.Optional(t.Union([t.Literal("md"), t.Literal("json")])),
+        format: t.Optional(
+          t.Union([t.Literal("md"), t.Literal("json")], {
+            default: "md",
+            description: "Download format",
+            examples: ["md"],
+          })
+        ),
       }),
     }
   );

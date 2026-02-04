@@ -70,7 +70,16 @@ export const schemasRoutes = new Elysia({ prefix: "/api/schemas" })
     {
       body: SchemaModel.createBody,
       detail: {
-        description: "Create a new extraction schema",
+        description: `Create a new extraction schema for structured data extraction.
+
+Define a JSON Schema that specifies the structure of data to extract from documents. Use this schema with the /extract endpoint.`,
+        responses: {
+          201: { description: "Schema created successfully" },
+          400: { description: "Bad Request - Invalid JSON schema" },
+          401: { description: "Unauthorized - Invalid or missing API key" },
+          429: { description: "Too Many Requests - Rate limit exceeded" },
+          500: { description: "Internal Server Error" },
+        },
         tags: ["Schemas"],
       },
     }
@@ -93,7 +102,15 @@ export const schemasRoutes = new Elysia({ prefix: "/api/schemas" })
     },
     {
       detail: {
-        description: "List all extraction schemas",
+        description: `List all extraction schemas for the current organization.
+
+Returns schema metadata including usage statistics and last used timestamp.`,
+        responses: {
+          200: { description: "List of schemas" },
+          401: { description: "Unauthorized - Invalid or missing API key" },
+          429: { description: "Too Many Requests - Rate limit exceeded" },
+          500: { description: "Internal Server Error" },
+        },
         tags: ["Schemas"],
       },
     }
@@ -126,11 +143,24 @@ export const schemasRoutes = new Elysia({ prefix: "/api/schemas" })
     },
     {
       detail: {
-        description: "Get schema details",
+        description: `Get detailed information about a specific schema.
+
+Returns the full JSON schema definition and usage statistics.`,
+        responses: {
+          200: { description: "Schema details" },
+          401: { description: "Unauthorized - Invalid or missing API key" },
+          404: { description: "Not Found - Schema does not exist" },
+          429: { description: "Too Many Requests - Rate limit exceeded" },
+          500: { description: "Internal Server Error" },
+        },
         tags: ["Schemas"],
       },
       params: t.Object({
-        id: t.String(),
+        id: t.String({
+          description: "Schema ID",
+          examples: ["sch_abc123xyz"],
+          pattern: "^sch_[a-zA-Z0-9_-]+$",
+        }),
       }),
     }
   )
@@ -164,11 +194,25 @@ export const schemasRoutes = new Elysia({ prefix: "/api/schemas" })
     {
       body: SchemaModel.updateBody,
       detail: {
-        description: "Update a schema",
+        description: `Update an existing schema.
+
+Modify the name, description, or JSON schema definition. Changes apply to future extractions only.`,
+        responses: {
+          200: { description: "Schema updated successfully" },
+          400: { description: "Bad Request - Invalid JSON schema" },
+          401: { description: "Unauthorized - Invalid or missing API key" },
+          404: { description: "Not Found - Schema does not exist" },
+          429: { description: "Too Many Requests - Rate limit exceeded" },
+          500: { description: "Internal Server Error" },
+        },
         tags: ["Schemas"],
       },
       params: t.Object({
-        id: t.String(),
+        id: t.String({
+          description: "Schema ID",
+          examples: ["sch_abc123xyz"],
+          pattern: "^sch_[a-zA-Z0-9_-]+$",
+        }),
       }),
     }
   )
@@ -200,11 +244,24 @@ export const schemasRoutes = new Elysia({ prefix: "/api/schemas" })
     },
     {
       detail: {
-        description: "Delete a schema",
+        description: `Permanently delete a schema.
+
+This action cannot be undone. Existing jobs that used this schema are not affected.`,
+        responses: {
+          200: { description: "Schema deleted successfully" },
+          401: { description: "Unauthorized - Invalid or missing API key" },
+          404: { description: "Not Found - Schema does not exist" },
+          429: { description: "Too Many Requests - Rate limit exceeded" },
+          500: { description: "Internal Server Error" },
+        },
         tags: ["Schemas"],
       },
       params: t.Object({
-        id: t.String(),
+        id: t.String({
+          description: "Schema ID",
+          examples: ["sch_abc123xyz"],
+          pattern: "^sch_[a-zA-Z0-9_-]+$",
+        }),
       }),
     }
   )
@@ -271,7 +328,27 @@ export const schemasRoutes = new Elysia({ prefix: "/api/schemas" })
     {
       body: SchemaModel.generateBody,
       detail: {
-        description: "Generate a schema from a parsed document using AI",
+        description: `Generate a JSON schema automatically from a parsed document using AI.
+
+Provide a completed parse job ID to analyze its content and generate a schema that captures the document's structure. Optionally include hints to guide the generation.
+
+**Example workflow:**
+1. Parse a document with POST /api/parse
+2. Generate a schema from the result with POST /api/schemas/generate
+3. Use the schema with POST /api/extract for similar documents`,
+        responses: {
+          200: { description: "Generated schema suggestion" },
+          400: {
+            description: "Bad Request - Job not processed or no markdown",
+          },
+          401: { description: "Unauthorized - Invalid or missing API key" },
+          403: {
+            description: "Forbidden - Job belongs to another organization",
+          },
+          404: { description: "Not Found - Job does not exist" },
+          429: { description: "Too Many Requests - Rate limit exceeded" },
+          500: { description: "Internal Server Error" },
+        },
         tags: ["Schemas"],
       },
     }

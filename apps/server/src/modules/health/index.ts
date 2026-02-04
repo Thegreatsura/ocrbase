@@ -49,13 +49,19 @@ const determineOverallStatus = (
 export const healthRoutes = new Elysia({ prefix: "/health" })
   .get("/live", () => ({ status: "ok" }), {
     detail: {
-      description: "Liveness probe for container orchestration",
+      description: `Liveness probe for container orchestration.
+
+Returns 200 if the server is running. Use for Kubernetes liveness probes.`,
+      responses: {
+        200: { description: "Server is alive" },
+      },
+      security: [],
       tags: ["Health"],
     },
   })
   .get(
     "/ready",
-    async (): Promise<HealthResponse> => {
+    async ({ set }): Promise<HealthResponse> => {
       const [database, redis, storage, ocr, llm] = await Promise.all([
         checkDatabaseHealth(),
         checkQueueHealth(),
@@ -74,6 +80,10 @@ export const healthRoutes = new Elysia({ prefix: "/health" })
 
       const status = determineOverallStatus(checks);
 
+      if (status === "unhealthy") {
+        set.status = 503;
+      }
+
       return {
         checks,
         status,
@@ -82,7 +92,24 @@ export const healthRoutes = new Elysia({ prefix: "/health" })
     },
     {
       detail: {
-        description: "Readiness probe with dependency health checks",
+        description: `Readiness probe with comprehensive dependency health checks.
+
+Checks all critical dependencies: database, Redis, storage, OCR service, and LLM service.
+
+**Status values:**
+- \`healthy\`: All services operational
+- \`degraded\`: Non-critical services unavailable (OCR, LLM)
+- \`unhealthy\`: Critical services unavailable (database, storage)`,
+        responses: {
+          200: {
+            description: "Healthy or degraded - service can accept requests",
+          },
+          503: {
+            description:
+              "Service Unavailable - Critical dependencies (database, storage) failed",
+          },
+        },
+        security: [],
         tags: ["Health"],
       },
     }

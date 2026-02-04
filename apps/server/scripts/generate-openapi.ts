@@ -8,6 +8,13 @@ import { openapi, fromTypes } from "@elysiajs/openapi";
 import { Elysia } from "elysia";
 import path from "node:path";
 
+import {
+  OpenApiInfo,
+  OpenApiServers,
+  OpenApiTagGroups,
+  OpenApiTags,
+  SecuritySchemes,
+} from "../src/lib/openapi";
 import { authRoutes } from "../src/modules/auth";
 import { extractRoutes } from "../src/modules/extract";
 import { healthRoutes } from "../src/modules/health";
@@ -43,26 +50,16 @@ const app = new Elysia()
   .use(
     openapi({
       documentation: {
-        info: {
-          description:
-            "API for OCR document processing and structured data extraction",
-          title: "ocrbase API",
-          version: "1.0.0",
+        components: {
+          securitySchemes: SecuritySchemes,
         },
-        servers: [
-          { description: "Production", url: "https://api.ocrbase.dev" },
-          { description: "Local development", url: "http://localhost:3000" },
-        ],
-        tags: [
-          { description: "Health check endpoints", name: "Health" },
-          { description: "Authentication endpoints", name: "Auth" },
-          { description: "Organization management", name: "Organization" },
-          { description: "Document parsing (OCR to markdown)", name: "Parse" },
-          { description: "Structured data extraction", name: "Extract" },
-          { description: "OCR job management", name: "Jobs" },
-          { description: "API key management", name: "Keys" },
-          { description: "Extraction schema management", name: "Schemas" },
-        ],
+        info: OpenApiInfo,
+        security: [{ bearerAuth: [] }],
+        servers: OpenApiServers,
+        tags: OpenApiTags,
+        ...({
+          "x-tagGroups": OpenApiTagGroups,
+        } as Record<string, unknown>),
       },
       path: "/openapi",
       references: fromTypes("src/index.ts", {
