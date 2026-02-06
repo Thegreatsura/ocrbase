@@ -31,7 +31,10 @@ import { wideEventPlugin } from "./plugins/wide-event";
 
 // Load pre-generated OpenAPI spec in production (sync for compile compatibility)
 const loadStaticOpenApiSpec = (): object | null => {
-  if (env.NODE_ENV !== "production") {
+  // Compiled Bun binaries run from $bunfs and cannot generate OpenAPI from TS sources.
+  const isCompiledRuntime = import.meta.dir.includes("$bunfs");
+
+  if (env.NODE_ENV !== "production" && !isCompiledRuntime) {
     return null;
   }
 
