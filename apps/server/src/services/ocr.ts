@@ -1,9 +1,6 @@
 import { env } from "@ocrbase/env/server";
 import { PaddleOCRClient } from "@ocrbase/paddleocr-vl-ts";
 
-// 2 minutes timeout for OCR requests
-const DEFAULT_TIMEOUT = 120_000;
-
 export interface ParseResult {
   markdown: string;
   pageCount: number;
@@ -11,7 +8,7 @@ export interface ParseResult {
 
 const ocrClient = new PaddleOCRClient({
   layoutUrl: env.PADDLE_OCR_URL,
-  timeout: DEFAULT_TIMEOUT,
+  timeout: env.PADDLE_OCR_TIMEOUT_MS,
 });
 
 const getFileType = (mimeType: string): 0 | 1 => {

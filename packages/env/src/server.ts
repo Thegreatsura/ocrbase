@@ -22,6 +22,9 @@ export const env = createEnv({
       .enum(["development", "production", "test"])
       .default("development"),
     OPENROUTER_API_KEY: z.string().optional(),
+    // OCR calls can take minutes for large PDFs (e.g. 100+ pages).
+    // Tune this per deployment/workload.
+    PADDLE_OCR_TIMEOUT_MS: z.coerce.number().int().positive().default(120_000),
     PADDLE_OCR_URL: z.url().default("http://localhost:8080"),
     PORT: z.coerce.number().default(3000),
     POSTHOG_API_KEY: z.string().optional(),
@@ -34,5 +37,8 @@ export const env = createEnv({
     S3_SECRET_KEY: z.string().optional(),
     SERVICE_NAME: z.string().optional(),
     SERVICE_VERSION: z.string().optional(),
+    // BullMQ worker concurrency. For very large PDFs, keep this low (1-2)
+    // to avoid saturating the OCR service.
+    WORKER_CONCURRENCY: z.coerce.number().int().positive().default(5),
   },
 });

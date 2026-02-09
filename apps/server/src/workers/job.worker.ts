@@ -1,3 +1,4 @@
+import { env } from "@ocrbase/env/server";
 import { type Job as BullJob, Worker } from "bullmq";
 
 import {
@@ -168,7 +169,7 @@ const processJob = async (bullJob: BullJob<JobData>): Promise<void> => {
 };
 
 const worker = new Worker<JobData>("ocr-jobs", processJob, {
-  concurrency: 5,
+  concurrency: env.WORKER_CONCURRENCY,
   connection: getWorkerConnection(),
 });
 

@@ -74,6 +74,16 @@ Then set in `.env`:
 PADDLE_OCR_URL=http://localhost:8080
 ```
 
+For large PDFs (e.g. ~200 pages), increase the OCR request timeout and reduce worker concurrency:
+
+```bash
+# e.g. 15 minutes
+PADDLE_OCR_TIMEOUT_MS=900000
+
+# avoid saturating the OCR service
+WORKER_CONCURRENCY=1
+```
+
 ## Environment Variables
 
 Create a `.env` file in the root directory:
@@ -97,6 +107,8 @@ S3_SECRET_KEY=minioadmin
 
 # OCR Service
 PADDLE_OCR_URL=https://your-paddleocr-instance.com
+PADDLE_OCR_TIMEOUT_MS=900000
+WORKER_CONCURRENCY=1
 
 # Optional - LLM for data extraction (required for /v1/extract)
 OPENROUTER_API_KEY=your-openrouter-api-key
