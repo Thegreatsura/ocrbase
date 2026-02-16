@@ -1,9 +1,33 @@
 import { Elysia, t } from "elysia";
 
-import { requireAuth } from "@/plugins/auth";
-
+import { requireAuth } from "../../plugins/auth";
 import { JobService } from "./service";
 import { formatJobResponse, getErrorMessage, getWideEvent } from "./shared";
+
+const sanitizeFileName = (name: string) => name.replaceAll(/["\r\n\\;]/g, "_");
+
+const SAFE_INLINE_TYPES = new Set([
+  "application/pdf",
+  "image/gif",
+  "image/jpeg",
+  "image/png",
+  "image/tiff",
+  "image/webp",
+]);
+
+const JobIdParams = t.Object({
+  id: t.String({
+    description: "Job ID",
+    examples: ["job_abc123xyz"],
+    pattern: "^job_[a-zA-Z0-9_-]+$",
+  }),
+});
+
+const commonResponses = {
+  401: { description: "Unauthorized - Invalid or missing API key" },
+  429: { description: "Too Many Requests - Rate limit exceeded" },
+  500: { description: "Internal Server Error" },
+};
 
 export const jobsRoutes = new Elysia({ prefix: "/v1/jobs" })
   .use(requireAuth)
@@ -42,9 +66,7 @@ Filter by status (pending, processing, extracting, completed, failed) or type (p
 Results are paginated with configurable page size (max 100).`,
         responses: {
           200: { description: "List of jobs with pagination metadata" },
-          401: { description: "Unauthorized - Invalid or missing API key" },
-          429: { description: "Too Many Requests - Rate limit exceeded" },
-          500: { description: "Internal Server Error" },
+          ...commonResponses,
         },
         tags: ["Jobs"],
       },
@@ -146,20 +168,12 @@ Returns job status, metadata, processing times, and results (if completed).
 For completed jobs, includes markdownResult and jsonResult (if extraction schema was used).`,
         responses: {
           200: { description: "Job details" },
-          401: { description: "Unauthorized - Invalid or missing API key" },
           404: { description: "Not Found - Job does not exist" },
-          429: { description: "Too Many Requests - Rate limit exceeded" },
-          500: { description: "Internal Server Error" },
+          ...commonResponses,
         },
         tags: ["Jobs"],
       },
-      params: t.Object({
-        id: t.String({
-          description: "Job ID",
-          examples: ["job_abc123xyz"],
-          pattern: "^job_[a-zA-Z0-9_-]+$",
-        }),
-      }),
+      params: JobIdParams,
     }
   )
   .delete(
@@ -202,20 +216,65 @@ For completed jobs, includes markdownResult and jsonResult (if extraction schema
 This action cannot be undone. Deletes the job record, uploaded file, and any generated results.`,
         responses: {
           200: { description: "Job deleted successfully" },
-          401: { description: "Unauthorized - Invalid or missing API key" },
           404: { description: "Not Found - Job does not exist" },
-          429: { description: "Too Many Requests - Rate limit exceeded" },
-          500: { description: "Internal Server Error" },
+          ...commonResponses,
         },
         tags: ["Jobs"],
       },
-      params: t.Object({
-        id: t.String({
-          description: "Job ID",
-          examples: ["job_abc123xyz"],
-          pattern: "^job_[a-zA-Z0-9_-]+$",
-        }),
-      }),
+      params: JobIdParams,
+    }
+  )
+  .get(
+    "/:id/file",
+    async (ctx) => {
+      const { organization, params, set, user } = ctx;
+
+      if (!user || !organization) {
+        set.status = 401;
+        return { message: "Unauthorized" };
+      }
+
+      try {
+        const file = await JobService.getFileBuffer(
+          organization.id,
+          user.id,
+          params.id
+        );
+
+        if (!file) {
+          set.status = 404;
+          return { message: "File not found" };
+        }
+
+        const safeType = SAFE_INLINE_TYPES.has(file.mimeType)
+          ? file.mimeType
+          : "application/octet-stream";
+        set.headers["Content-Type"] = safeType;
+        set.headers["Content-Disposition"] =
+          `inline; filename="${sanitizeFileName(file.fileName)}"`;
+        set.headers["Content-Security-Policy"] = "sandbox";
+        set.headers["X-Content-Type-Options"] = "nosniff";
+        set.headers["Cache-Control"] = "private, max-age=3600";
+
+        return file.buffer;
+      } catch (error) {
+        set.status = 500;
+        return { message: getErrorMessage(error, "Failed to get file") };
+      }
+    },
+    {
+      detail: {
+        description: `Download the original uploaded file.
+
+Streams the file with appropriate Content-Type header for inline viewing.`,
+        responses: {
+          200: { description: "File content" },
+          404: { description: "Not Found - Job or file does not exist" },
+          ...commonResponses,
+        },
+        tags: ["Jobs"],
+      },
+      params: JobIdParams,
     }
   )
   .get(
@@ -243,7 +302,7 @@ This action cannot be undone. Deletes the job record, uploaded file, and any gen
 
         set.headers["Content-Type"] = contentType;
         set.headers["Content-Disposition"] =
-          `attachment; filename="${fileName}"`;
+          `attachment; filename="${sanitizeFileName(fileName)}"`;
 
         return content;
       } catch (error) {
@@ -264,20 +323,12 @@ Choose between markdown (.md) or JSON (.json) format. JSON format is only availa
             description:
               "Bad Request - Job not completed or JSON not available",
           },
-          401: { description: "Unauthorized - Invalid or missing API key" },
           404: { description: "Not Found - Job does not exist" },
-          429: { description: "Too Many Requests - Rate limit exceeded" },
-          500: { description: "Internal Server Error" },
+          ...commonResponses,
         },
         tags: ["Jobs"],
       },
-      params: t.Object({
-        id: t.String({
-          description: "Job ID",
-          examples: ["job_abc123xyz"],
-          pattern: "^job_[a-zA-Z0-9_-]+$",
-        }),
-      }),
+      params: JobIdParams,
       query: t.Object({
         format: t.Optional(
           t.Union([t.Literal("md"), t.Literal("json")], {

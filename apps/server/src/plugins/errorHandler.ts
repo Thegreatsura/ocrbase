@@ -1,7 +1,5 @@
 import { Elysia } from "elysia";
 
-import { logger } from "./logging";
-
 interface ErrorResponse {
   error: string;
   message: string;
@@ -28,7 +26,6 @@ export const errorHandlerPlugin = new Elysia({ name: "errorHandler" }).onError(
     let statusCode = 500;
     let errorName = "Internal Server Error";
     let message = "An unexpected error occurred";
-    let stack: string | undefined;
 
     const isError = error instanceof Error;
 
@@ -48,20 +45,7 @@ export const errorHandlerPlugin = new Elysia({ name: "errorHandler" }).onError(
       statusCode = getStatusFromError(error);
       errorName = error.name || "Error";
       message = error.message || message;
-      ({ stack } = error);
     }
-
-    logger.error(
-      {
-        code,
-        error: errorName,
-        message,
-        requestId: reqId,
-        stack,
-        statusCode,
-      },
-      "Request error"
-    );
 
     set.status = statusCode;
 

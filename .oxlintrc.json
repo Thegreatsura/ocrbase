@@ -16,9 +16,15 @@
     "import/consistent-type-specifier-style": "off",
     "max-statements": "off",
     "jest/require-hook": "off",
-    "func-style": ["error", "expression", { "allowArrowFunctions": true }]
+    "func-style": "error"
   },
   "overrides": [
+    {
+      "files": ["apps/web/**/*.ts", "apps/web/**/*.tsx"],
+      "rules": {
+        "func-style": "off"
+      }
+    },
     {
       "files": [
         "**/*.test.ts",
@@ -34,7 +40,8 @@
     {
       "files": ["apps/server/**/*.ts"],
       "rules": {
-        "import/no-nodejs-modules": "off"
+        "import/no-nodejs-modules": "off",
+        "import/no-relative-parent-imports": "off"
       }
     },
     {

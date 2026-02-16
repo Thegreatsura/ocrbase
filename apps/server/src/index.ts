@@ -2,17 +2,31 @@ import { env } from "@ocrbase/env/server";
 
 import { app, type App } from "./app";
 import { shutdownPosthog } from "./lib/posthog";
+import { logger } from "./plugins/logging";
 
 const startServer = (): void => {
   app.listen(env.PORT, () => {
-    console.info(`Server is running on http://${env.HOST}:${env.PORT}`);
-    console.info(
-      `OpenAPI docs available at http://${env.HOST}:${env.PORT}/openapi`
+    const baseUrl = `http://${env.HOST}:${env.PORT}`;
+    logger.info(
+      {
+        event: "server_start",
+        host: env.HOST,
+        port: env.PORT,
+      },
+      "server_start"
+    );
+    logger.info(
+      {
+        event: "openapi_available",
+        url: `${baseUrl}/openapi`,
+      },
+      "openapi_available"
     );
   });
 };
 
 const shutdown = async () => {
+  logger.info({ event: "server_shutdown" }, "server_shutdown");
   await app.stop();
   await shutdownPosthog();
   process.exit(0);

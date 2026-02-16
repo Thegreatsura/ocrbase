@@ -1,0 +1,12 @@
+[mcp_servers.context7]
+command = "bunx"
+args = ["-y", "@upstash/context7-mcp"]
+
+[mcp_servers.shadcn]
+command = "bunx"
+args = ["shadcn@latest", "mcp"]
+
+[mcp_servers.better-auth]
+url = "https://mcp.chonkie.ai/better-auth/better-auth-builder/mcp"
+
+notify = ["bash", "-lc", "bun x ultracite fix && bun check-types"]

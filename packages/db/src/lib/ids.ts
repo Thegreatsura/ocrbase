@@ -5,12 +5,18 @@ const alphabet =
 const nanoid = customAlphabet(alphabet, 16);
 
 export const ID_PREFIXES = {
+  account: "acc",
   apiKey: "ak",
   apiKeyUsage: "aku",
+  invitation: "inv",
   job: "job",
+  member: "mem",
   organization: "org",
   schema: "sch",
+  session: "ses",
   usageEvent: "ue",
+  user: "usr",
+  verification: "vrf",
 } as const;
 
 type IdPrefix = keyof typeof ID_PREFIXES;

@@ -11,6 +11,7 @@ const DEFAULT_JOB_ATTEMPTS = 3;
 export interface JobData {
   jobId: string;
   organizationId: string;
+  requestId?: string;
   userId: string;
 }
 

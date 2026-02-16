@@ -6,9 +6,9 @@ import { member, organization, user } from "@ocrbase/db/schema/auth";
 import { eq } from "drizzle-orm";
 import { Elysia } from "elysia";
 
-import type { WideEventContext } from "@/lib/wide-event";
+import type { WideEventContext } from "../lib/wide-event";
 
-import { type ApiKeyInfo, validateApiKey } from "@/lib/api-key";
+import { type ApiKeyInfo, validateApiKey } from "../lib/api-key";
 
 type Organization = Awaited<ReturnType<typeof auth.api.getFullOrganization>>;
 
@@ -31,8 +31,11 @@ export const authPlugin = new Elysia({ name: "auth" }).derive(
     const hasApiKeyToken =
       authHeader?.toLowerCase().startsWith("bearer sk_") ?? false;
 
+    wideEvent?.setAuth({ type: "anonymous" });
+
     // API key authentication
     if (hasApiKeyToken) {
+      wideEvent?.setAuth({ type: "api_key" });
       const apiKey = await validateApiKey(authHeader);
       if (!apiKey) {
         return {
@@ -68,6 +71,7 @@ export const authPlugin = new Elysia({ name: "auth" }).derive(
         dbOrg = membership?.org;
       }
 
+      wideEvent?.setAuth({ apiKeyId: apiKey.id, type: "api_key" });
       wideEvent?.setUser({ id: dbUser.id });
       if (dbOrg) {
         wideEvent?.setOrganization({ id: dbOrg.id, name: dbOrg.name });
@@ -107,6 +111,7 @@ export const authPlugin = new Elysia({ name: "auth" }).derive(
       return { apiKey: null, organization: null, session: null, user: null };
     }
 
+    wideEvent?.setAuth({ type: "session" });
     wideEvent?.setUser({ id: session.user.id });
 
     // Resolve organization

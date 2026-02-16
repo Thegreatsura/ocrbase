@@ -1,19 +1,10 @@
-import type { JobStatus } from "@ocrbase/db/lib/enums";
+import type { JobUpdateMessage } from "@ocrbase/db/lib/enums";
 
 import { env } from "@ocrbase/env/server";
 import Redis from "ioredis";
+import { setTimeout } from "node:timers/promises";
 
-export interface JobUpdateMessage {
-  type: "status" | "completed" | "error";
-  jobId: string;
-  data: {
-    status?: JobStatus;
-    processingTimeMs?: number;
-    error?: string;
-    markdownResult?: string;
-    jsonResult?: unknown;
-  };
-}
+export type { JobUpdateMessage };
 
 const getRedisUrl = (): string | null => env.REDIS_URL ?? null;
 
@@ -50,6 +41,11 @@ const subscriptions = new Map<
   Set<(message: JobUpdateMessage) => void>
 >();
 
+// Track the in-flight Redis SUBSCRIBE for each channel so callers can await
+// readiness and avoid a race where a publish happens before the subscriber is
+// actually subscribed.
+const subscriptionReady = new Map<string, Promise<void>>();
+
 const getChannelName = (jobId: string): string => `job:${jobId}`;
 
 export const publishJobUpdate = async (
@@ -64,10 +60,23 @@ export const publishJobUpdate = async (
   await pub.publish(channel, JSON.stringify(message));
 };
 
-export const subscribeToJob = (
+const subscribeToChannel = async (
+  sub: Redis,
+  channel: string
+): Promise<void> => {
+  try {
+    await sub.subscribe(channel);
+  } catch (error) {
+    // Allow retry on later subscribe attempts if Redis was temporarily down.
+    subscriptionReady.delete(channel);
+    throw error;
+  }
+};
+
+export const subscribeToJob = async (
   jobId: string,
   handler: (message: JobUpdateMessage) => void
-): void => {
+): Promise<void> => {
   const sub = getSubscriber();
   if (!sub) {
     return;
@@ -78,10 +87,23 @@ export const subscribeToJob = (
 
   if (!subscriptions.has(channel)) {
     subscriptions.set(channel, new Set());
-    sub.subscribe(channel);
+    // Store the promise immediately so concurrent calls can await it.
+    const ready = subscribeToChannel(sub, channel);
+    subscriptionReady.set(channel, ready);
   }
 
   subscriptions.get(channel)?.add(handler);
+
+  const ready = subscriptionReady.get(channel);
+  if (ready) {
+    try {
+      // Avoid hanging the WS open handler forever if Redis is slow/unavailable.
+      await Promise.race([ready, setTimeout(1000)]);
+    } catch {
+      // If Redis subscribe fails, keep the handler registered; callers can
+      // decide on fallback behaviour (polling, reconnect, etc.).
+    }
+  }
 };
 
 export const unsubscribeFromJob = (
@@ -96,6 +118,7 @@ export const unsubscribeFromJob = (
 
     if (handlers.size === 0) {
       subscriptions.delete(channel);
+      subscriptionReady.delete(channel);
       subscriber?.unsubscribe(channel);
     }
   }
@@ -132,6 +155,7 @@ const initializeMessageHandler = (): void => {
 
 export const closeWebSocketConnections = async (): Promise<void> => {
   subscriptions.clear();
+  subscriptionReady.clear();
   const promises: Promise<string>[] = [];
   if (publisher) {
     promises.push(publisher.quit());

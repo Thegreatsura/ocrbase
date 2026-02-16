@@ -1,6 +1,5 @@
 import { cors } from "@elysiajs/cors";
 import { openapi, fromTypes } from "@elysiajs/openapi";
-import { auth } from "@ocrbase/auth";
 import { env } from "@ocrbase/env/server";
 import { Elysia } from "elysia";
 import fs from "node:fs";
@@ -13,7 +12,7 @@ import {
   OpenApiTags,
   SecuritySchemes,
 } from "./lib/openapi";
-import { authRoutes } from "./modules/auth";
+import { authRoutes, handleAuthRequest } from "./modules/auth";
 import { extractRoutes } from "./modules/extract";
 import { healthRoutes } from "./modules/health";
 import { jobsRoutes } from "./modules/jobs";
@@ -25,6 +24,7 @@ import { parseRoutes } from "./modules/parse";
 import { schemasRoutes } from "./modules/schemas";
 import { SchemaModel } from "./modules/schemas/model";
 import { errorHandlerPlugin } from "./plugins/errorHandler";
+import { logger } from "./plugins/logging";
 import { rateLimitPlugin } from "./plugins/rateLimit";
 import { securityPlugin } from "./plugins/security";
 import { wideEventPlugin } from "./plugins/wide-event";
@@ -57,8 +57,12 @@ const loadStaticOpenApiSpec = (): object | null => {
     }
   }
 
-  console.warn(
-    "Pre-generated OpenAPI spec not found, falling back to dynamic generation"
+  logger.info(
+    {
+      event: "openapi_spec_fallback",
+      searchedPaths: possiblePaths,
+    },
+    "openapi_spec_fallback"
   );
   return null;
 };
@@ -146,8 +150,8 @@ export const app = new Elysia()
   .use(wideEventPlugin)
   .use(rateLimitPlugin)
   .use(errorHandlerPlugin)
-  .mount(auth.handler)
-  // OpenAPI documentation for auth endpoints (mount handles actual requests)
+  // Catch-all for undocumented auth routes (e.g. OAuth callbacks)
+  .all("/v1/auth/*", handleAuthRequest, { detail: { hide: true } })
   .use(authRoutes)
   .use(healthRoutes)
   .use(parseRoutes)

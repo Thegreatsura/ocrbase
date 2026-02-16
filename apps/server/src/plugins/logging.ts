@@ -1,7 +1,7 @@
 import { env } from "@ocrbase/env/server";
 import pino from "pino";
 
-import { envContext } from "@/lib/env-context";
+import { envContext } from "../lib/env-context";
 
 export const logger = pino(
   {

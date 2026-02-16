@@ -1,8 +1,8 @@
 import { Elysia, t } from "elysia";
 
-import { ExampleUrls, FileConstraints } from "@/lib/openapi";
-import { createJobHandler, getWideEvent } from "@/modules/jobs/shared";
-import { requireAuth } from "@/plugins/auth";
+import { ExampleUrls, FileConstraints } from "../../lib/openapi";
+import { requireAuth } from "../../plugins/auth";
+import { createJobHandler, getWideEvent } from "../jobs/shared";
 
 export const parseRoutes = new Elysia({ prefix: "/v1/parse" })
   .use(requireAuth)

@@ -14,6 +14,52 @@ import { parseDocument } from "@/services/ocr";
 import { type JobData, getWorkerConnection } from "@/services/queue";
 import { StorageService } from "@/services/storage";
 
+interface ExtractionMetrics {
+  llmDurationMs: number;
+  llmModel: string;
+  processingTimeMs: number;
+  tokenCount: number;
+}
+
+const toErrorContext = (
+  error: unknown
+): NonNullable<WorkerJobContext["error"]> => {
+  if (error instanceof Error) {
+    return {
+      code: error.name || "UNKNOWN_ERROR",
+      message: error.message || "Unknown error",
+      stack: error.stack,
+    };
+  }
+
+  if (typeof error === "object" && error !== null) {
+    const record = error as Record<string, unknown>;
+    const {
+      code: recordCode,
+      message: recordMessage,
+      name: recordName,
+      stack: recordStack,
+    } = record;
+
+    let code = "UNKNOWN_ERROR";
+    if (typeof recordCode === "string") {
+      code = recordCode;
+    } else if (typeof recordName === "string") {
+      code = recordName;
+    }
+    const message =
+      typeof recordMessage === "string" ? recordMessage : String(error);
+    const stack = typeof recordStack === "string" ? recordStack : undefined;
+
+    return { code, message, stack };
+  }
+
+  return {
+    code: "UNKNOWN_ERROR",
+    message: String(error),
+  };
+};
+
 const runExtraction = async (
   jobId: string,
   markdown: string,
@@ -21,14 +67,16 @@ const runExtraction = async (
   hints: string | null,
   pageCount: number,
   startTime: number
-): Promise<void> => {
+): Promise<ExtractionMetrics> => {
   await updateJobStatus(jobId, "extracting");
 
+  const llmStart = Date.now();
   const extractionResult = await llmService.processExtraction({
     hints: hints ?? undefined,
     markdown,
     schema,
   });
+  const llmDurationMs = Date.now() - llmStart;
 
   const processingTimeMs = Date.now() - startTime;
   const tokenCount =
@@ -44,6 +92,13 @@ const runExtraction = async (
     processingTimeMs,
     tokenCount,
   });
+
+  return {
+    llmDurationMs,
+    llmModel: extractionResult.model,
+    processingTimeMs,
+    tokenCount,
+  };
 };
 
 const finishParseJob = async (
@@ -51,7 +106,7 @@ const finishParseJob = async (
   markdown: string,
   pageCount: number,
   startTime: number
-): Promise<void> => {
+): Promise<number> => {
   const processingTimeMs = Date.now() - startTime;
 
   await completeJob(jobId, {
@@ -59,15 +114,28 @@ const finishParseJob = async (
     pageCount,
     processingTimeMs,
   });
+
+  return processingTimeMs;
 };
 
 const processJob = async (bullJob: BullJob<JobData>): Promise<void> => {
   const { jobId } = bullJob.data;
   const startTime = Date.now();
+  const maxAttempts = bullJob.opts.attempts ?? 1;
+  const attempt = bullJob.attemptsMade + 1;
 
   const eventContext: WorkerJobContext = {
     bullJobId: bullJob.id,
+    event: "job_processing",
     jobId,
+    queue: "ocr-jobs",
+    requestId: bullJob.data.requestId,
+    retry: {
+      attempt,
+      maxAttempts,
+      willRetryOnFailure: attempt < maxAttempts,
+    },
+    timestamp: new Date().toISOString(),
   };
 
   try {
@@ -78,18 +146,21 @@ const processJob = async (bullJob: BullJob<JobData>): Promise<void> => {
     }
 
     eventContext.type = job.type;
+    eventContext.fileName = job.fileName;
     eventContext.fileSize = job.fileSize;
     eventContext.mimeType = job.mimeType;
+    eventContext.schemaId = job.schemaId;
+    eventContext.apiKeyId = job.apiKeyId;
     eventContext.userId = job.userId;
     eventContext.organizationId = job.organizationId;
 
     await updateJobStatus(jobId, "processing", { startedAt: new Date() });
 
-    // Download from URL if fileKey is not set
-    let { fileKey } = job;
+    let fileBuffer: Buffer;
     let { mimeType } = job;
 
-    if (!fileKey && job.sourceUrl) {
+    if (!job.fileKey && job.sourceUrl) {
+      // URL job: fetch from source, process in memory, no S3
       const response = await fetch(job.sourceUrl);
 
       if (!response.ok) {
@@ -100,32 +171,34 @@ const processJob = async (bullJob: BullJob<JobData>): Promise<void> => {
 
       const contentType =
         response.headers.get("content-type") ?? "application/octet-stream";
-      const buffer = Buffer.from(await response.arrayBuffer());
-
-      const urlParts = new URL(job.sourceUrl);
-      const fileName =
-        urlParts.pathname.split("/").pop() ?? `download-${Date.now()}`;
-
-      fileKey = `${job.organizationId}/jobs/${job.id}/${fileName}`;
+      fileBuffer = Buffer.from(await response.arrayBuffer());
       mimeType = contentType;
 
-      await StorageService.uploadFile(fileKey, buffer, contentType);
+      eventContext.source = "url";
+
       await updateJobFileInfo(jobId, {
-        fileKey,
-        fileName,
-        fileSize: buffer.length,
+        fileKey: null,
+        fileName: job.fileName,
+        fileSize: fileBuffer.length,
         mimeType: contentType,
       });
-    }
-
-    if (!fileKey) {
+    } else if (job.fileKey) {
+      // File upload: read from S3
+      eventContext.source = "storage";
+      const storageStart = Date.now();
+      fileBuffer = await StorageService.getFile(job.fileKey);
+      const storageDurationMs = Date.now() - storageStart;
+      eventContext.storageDurationMs = storageDurationMs;
+    } else {
       throw new Error("No file or URL provided for job");
     }
 
-    const fileBuffer = await StorageService.getFile(fileKey);
+    const ocrStart = Date.now();
     const { markdown, pageCount } = await parseDocument(fileBuffer, mimeType);
+    const ocrDurationMs = Date.now() - ocrStart;
 
     eventContext.pageCount = pageCount;
+    eventContext.ocrDurationMs = ocrDurationMs;
 
     await updateJobStatus(jobId, "processing", {
       markdownResult: markdown,
@@ -136,7 +209,7 @@ const processJob = async (bullJob: BullJob<JobData>): Promise<void> => {
       const schema = job.schema?.jsonSchema as
         | Record<string, unknown>
         | undefined;
-      await runExtraction(
+      const extractionMetrics = await runExtraction(
         jobId,
         markdown,
         schema,
@@ -144,8 +217,17 @@ const processJob = async (bullJob: BullJob<JobData>): Promise<void> => {
         pageCount,
         startTime
       );
+      eventContext.llmDurationMs = extractionMetrics.llmDurationMs;
+      eventContext.llmModel = extractionMetrics.llmModel;
+      eventContext.processingTimeMs = extractionMetrics.processingTimeMs;
+      eventContext.tokenCount = extractionMetrics.tokenCount;
     } else {
-      await finishParseJob(jobId, markdown, pageCount, startTime);
+      eventContext.processingTimeMs = await finishParseJob(
+        jobId,
+        markdown,
+        pageCount,
+        startTime
+      );
     }
 
     eventContext.status = "completed";
@@ -153,18 +235,18 @@ const processJob = async (bullJob: BullJob<JobData>): Promise<void> => {
   } catch (error) {
     eventContext.status = "failed";
     eventContext.outcome = "error";
-
-    const isError = error instanceof Error;
-    eventContext.error = {
-      code: isError ? error.name : "UNKNOWN_ERROR",
-      message: isError ? error.message : String(error),
-      stack: isError ? error.stack : undefined,
-    };
+    eventContext.error = toErrorContext(error);
 
     throw error;
   } finally {
     eventContext.durationMs = Date.now() - startTime;
-    workerLogger.info(eventContext, "job_processing");
+    eventContext.timestamp = new Date().toISOString();
+
+    if (eventContext.outcome === "error") {
+      workerLogger.error(eventContext, "job_processing");
+    } else {
+      workerLogger.info(eventContext, "job_processing");
+    }
   }
 };
 

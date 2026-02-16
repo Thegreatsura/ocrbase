@@ -1,0 +1,159 @@
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+@import "tailwindcss";
+
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: #ffffff;
+  --foreground: #0d0d0d;
+  --card: #ffffff;
+  --card-foreground: #0d0d0d;
+  --popover: #ffffff;
+  --popover-foreground: #0d0d0d;
+  --primary: #0d0d0d;
+  --primary-foreground: #ffffff;
+  --secondary: #ececec;
+  --secondary-foreground: #0d0d0d;
+  --muted: #f4f4f4;
+  --muted-foreground: #6e6e6e;
+  --accent: #ececec;
+  --accent-foreground: #0d0d0d;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --ring: #0d0d0d;
+  --chart-1: #0d0d0d;
+  --chart-2: #6e6e6e;
+  --chart-3: #0d0d0d;
+  --chart-4: #6e6e6e;
+  --chart-5: #ececec;
+  --radius: 0.625rem;
+  --sidebar: #f9f9f9;
+  --sidebar-foreground: #0d0d0d;
+  --sidebar-primary: #0d0d0d;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ececec;
+  --sidebar-accent-foreground: #0d0d0d;
+  --sidebar-border: #e5e5e5;
+  --sidebar-ring: #0d0d0d;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #212121;
+    --foreground: #ffffff;
+    --card: #212121;
+    --card-foreground: #ffffff;
+    --popover: #2f2f2f;
+    --popover-foreground: #ffffff;
+    --primary: #ffffff;
+    --primary-foreground: #0d0d0d;
+    --secondary: #2f2f2f;
+    --secondary-foreground: #ffffff;
+    --muted: #2f2f2f;
+    --muted-foreground: #b4b4b4;
+    --accent: #2f2f2f;
+    --accent-foreground: #ffffff;
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+    --border: #3d3d3d;
+    --input: #3d3d3d;
+    --ring: #ffffff;
+    --chart-1: #ffffff;
+    --chart-2: #b4b4b4;
+    --chart-3: #ffffff;
+    --chart-4: #b4b4b4;
+    --chart-5: #3d3d3d;
+    --sidebar: #181818;
+    --sidebar-foreground: #ffffff;
+    --sidebar-primary: #ffffff;
+    --sidebar-primary-foreground: #0d0d0d;
+    --sidebar-accent: #2f2f2f;
+    --sidebar-accent-foreground: #ffffff;
+    --sidebar-border: #3d3d3d;
+    --sidebar-ring: #ffffff;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+  html {
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    html {
+      color-scheme: dark;
+    }
+  }
+  body {
+    @apply m-0 bg-background text-foreground;
+    font-family:
+      -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
+      "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  code {
+    font-family:
+      source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+  }
+  select {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+}

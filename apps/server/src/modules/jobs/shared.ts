@@ -1,7 +1,6 @@
 import type { Job } from "@ocrbase/db/schema/jobs";
 
-import type { WideEventContext } from "@/lib/wide-event";
-
+import type { WideEventContext } from "../../lib/wide-event";
 import type { JobResponse } from "./model";
 
 import { JobService } from "./service";
@@ -69,6 +68,7 @@ export const createJobHandler = async <
       url?: string;
     };
     organization: { id: string } | null;
+    requestId?: string;
     set: { status?: number | string };
     user: { id: string } | null;
   },
@@ -77,7 +77,7 @@ export const createJobHandler = async <
   wideEvent: WideEventContext | undefined,
   options: CreateJobHandlerOptions
 ): Promise<JobResponse | { message: string }> => {
-  const { apiKey, body, organization, set, user } = ctx;
+  const { apiKey, body, organization, requestId, set, user } = ctx;
 
   if (!user || !organization) {
     set.status = 401;
@@ -102,6 +102,7 @@ export const createJobHandler = async <
           url: body.url,
         },
         organizationId,
+        requestId,
         userId: user.id,
       });
 
@@ -131,6 +132,7 @@ export const createJobHandler = async <
         type: file.type,
       },
       organizationId,
+      requestId,
       userId: user.id,
     });
 

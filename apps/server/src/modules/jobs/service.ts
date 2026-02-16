@@ -4,10 +4,10 @@ import { db } from "@ocrbase/db";
 import { jobs, type Job } from "@ocrbase/db/schema/jobs";
 import { and, asc, count, desc, eq } from "drizzle-orm";
 
-import { addJob } from "@/services/queue";
-import { StorageService } from "@/services/storage";
-
 import type { CreateJobBody, ListJobsQuery, PaginationMeta } from "./model";
+
+import { addJob } from "../../services/queue";
+import { StorageService } from "../../services/storage";
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
@@ -22,6 +22,7 @@ interface CreateJobInput {
     type: string;
   };
   organizationId: string;
+  requestId?: string;
   userId: string;
 }
 
@@ -29,6 +30,7 @@ interface CreateJobFromUrlInput {
   apiKeyId?: string;
   body: CreateJobBody & { url: string };
   organizationId: string;
+  requestId?: string;
   userId: string;
 }
 
@@ -38,13 +40,13 @@ interface ListJobsResult {
 }
 
 const create = async (input: CreateJobInput): Promise<Job> => {
-  const { apiKeyId, body, file, organizationId, userId } = input;
+  const { apiKeyId, body, file, organizationId, requestId, userId } = input;
 
   const [newJob] = await db
     .insert(jobs)
     .values({
       apiKeyId,
-      fileKey: "",
+      fileKey: null,
       fileName: file.name,
       fileSize: file.size,
       hints: body.hints,
@@ -78,6 +80,7 @@ const create = async (input: CreateJobInput): Promise<Job> => {
   await addJob({
     jobId: updatedJob.id,
     organizationId,
+    requestId,
     userId,
   });
 
@@ -95,7 +98,7 @@ const extractFilenameFromUrl = (url: string): string => {
 };
 
 const createFromUrl = async (input: CreateJobFromUrlInput): Promise<Job> => {
-  const { apiKeyId, body, organizationId, userId } = input;
+  const { apiKeyId, body, organizationId, requestId, userId } = input;
 
   const fileName = extractFilenameFromUrl(body.url);
 
@@ -124,6 +127,7 @@ const createFromUrl = async (input: CreateJobFromUrlInput): Promise<Job> => {
   await addJob({
     jobId: newJob.id,
     organizationId,
+    requestId,
     userId,
   });
 
@@ -216,6 +220,25 @@ const list = async (
   };
 };
 
+const getFileBuffer = async (
+  organizationId: string,
+  userId: string,
+  jobId: string
+): Promise<{ buffer: Buffer; mimeType: string; fileName: string } | null> => {
+  const job = await getById(organizationId, userId, jobId);
+
+  if (!job?.fileKey) {
+    return null;
+  }
+
+  const buffer = await StorageService.getFile(job.fileKey);
+  return {
+    buffer,
+    fileName: job.fileName,
+    mimeType: job.mimeType,
+  };
+};
+
 const getDownloadContent = async (
   organizationId: string,
   userId: string,
@@ -257,5 +280,6 @@ export const JobService = {
   delete: deleteJob,
   getById,
   getDownloadContent,
+  getFileBuffer,
   list,
 };

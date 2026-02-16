@@ -1,8 +1,7 @@
 import { Elysia, t } from "elysia";
 
-import { IdPatterns } from "@/lib/openapi";
-import { requireAuth } from "@/plugins/auth";
-
+import { IdPatterns } from "../../lib/openapi";
+import { requireAuth } from "../../plugins/auth";
 import { KeyModel } from "./model";
 import { KeyService } from "./service";
 
