@@ -6,7 +6,7 @@ description: Extract structured data from documents using a schema.
 ## Usage
 
 ```ts
-import { extract } from "ocrbase";
+import { extract } from "ocrbase-sdk";
 
 const result = await extract("./invoice.pdf", {
   vendor: "string",
@@ -108,7 +108,7 @@ const result = await extract("./receipt.pdf", {
 ### With Zod
 
 ```ts
-import { extract } from "ocrbase";
+import { extract } from "ocrbase-sdk";
 import { z } from "zod";
 
 const InvoiceSchema = z.object({

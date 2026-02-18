@@ -67,7 +67,7 @@ const formatCurrency = (value: unknown): string => {
 /* ────────────────────────────────────────────────────────────────────────── */
 
 function Hero() {
-  const { copied, copy } = useCopy("bun add ocrbase");
+  const { copied, copy } = useCopy("bun add ocrbase-sdk");
 
   return (
     <section className="px-6 py-10">
@@ -132,7 +132,7 @@ function Hero() {
                 variant="outline"
                 className="h-11 gap-3 rounded-md border bg-background px-5 font-code text-[14px] text-muted-foreground shadow-none"
               >
-                $ bun add ocrbase
+                $ bun add ocrbase-sdk
                 {copied ? (
                   <Check className="h-4 w-4 text-success" />
                 ) : (
@@ -450,13 +450,13 @@ function Testimonials() {
 /*  SIMPLE SETUP (code section)                                               */
 /* ────────────────────────────────────────────────────────────────────────── */
 
-const SCHEMA_CODE_PLAIN = `import { parse } from "ocrbase";
+const SCHEMA_CODE_PLAIN = `import { parse } from "ocrbase-sdk";
 
 const { text } = await parse("./invoice.pdf");
 console.log(text);`;
 
 const SCHEMA_CODE_HTML = [
-  `<span class="syntax-keyword">import</span> { <span class="syntax-fn">parse</span> } <span class="syntax-keyword">from</span> <span class="syntax-string">"ocrbase"</span>;`,
+  `<span class="syntax-keyword">import</span> { <span class="syntax-fn">parse</span> } <span class="syntax-keyword">from</span> <span class="syntax-string">"ocrbase-sdk"</span>;`,
   ``,
   `<span class="syntax-keyword">const</span> { <span class="syntax-fn">text</span> } = <span class="syntax-keyword">await</span> <span class="syntax-fn">parse</span>(<span class="syntax-string">"./invoice.pdf"</span>);`,
   ``,
@@ -535,7 +535,7 @@ function SimpleSetup() {
 /* ────────────────────────────────────────────────────────────────────────── */
 
 function CTASection() {
-  const { copied, copy } = useCopy("bun add ocrbase");
+  const { copied, copy } = useCopy("bun add ocrbase-sdk");
 
   return (
     <section className="px-6 py-24">
@@ -560,7 +560,7 @@ function CTASection() {
               variant="outline"
               className="h-11 gap-3 rounded-md border-border bg-background px-5 font-code text-[14px] text-muted-foreground shadow-none hover:border-border"
             >
-              $ bun add ocrbase
+              $ bun add ocrbase-sdk
               {copied ? (
                 <Check className="h-4 w-4 text-success" />
               ) : (

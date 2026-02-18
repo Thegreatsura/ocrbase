@@ -6,10 +6,10 @@ description: Get started with ocrbase in under 5 minutes.
 ## Installation
 
 <Tabs items={["bun", "npm", "pnpm", "yarn"]}>
-  <Tab value="bun">```bash bun add ocrbase ```</Tab>
-  <Tab value="npm">```bash npm install ocrbase ```</Tab>
-  <Tab value="pnpm">```bash pnpm add ocrbase ```</Tab>
-  <Tab value="yarn">```bash yarn add ocrbase ```</Tab>
+  <Tab value="bun">```bash bun add ocrbase-sdk ```</Tab>
+  <Tab value="npm">```bash npm install ocrbase-sdk ```</Tab>
+  <Tab value="pnpm">```bash pnpm add ocrbase-sdk ```</Tab>
+  <Tab value="yarn">```bash yarn add ocrbase-sdk ```</Tab>
 </Tabs>
 
 ## Setup
@@ -17,7 +17,7 @@ description: Get started with ocrbase in under 5 minutes.
 The SDK reads your API key from `OCRBASE_API_KEY` automatically:
 
 ```ts
-import { parse } from "ocrbase";
+import { parse } from "ocrbase-sdk";
 
 const { text } = await parse("./invoice.pdf");
 console.log(text);
@@ -33,7 +33,7 @@ console.log(text);
 Convert a PDF to markdown:
 
 ```ts
-import { parse } from "ocrbase";
+import { parse } from "ocrbase-sdk";
 
 const { text } = await parse("./invoice.pdf");
 
@@ -48,7 +48,7 @@ console.log(text);
 Define a schema and extract typed JSON:
 
 ```ts
-import { extract } from "ocrbase";
+import { extract } from "ocrbase-sdk";
 
 const { object } = await extract("./invoice.pdf", {
   vendor: "string",

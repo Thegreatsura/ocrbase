@@ -6,16 +6,16 @@ description: TypeScript SDK for ocrbase with type-safe document parsing and extr
 ## Installation
 
 <Tabs items={["bun", "npm", "pnpm", "yarn"]}>
-  <Tab value="bun">```bash bun add ocrbase ```</Tab>
-  <Tab value="npm">```bash npm install ocrbase ```</Tab>
-  <Tab value="pnpm">```bash pnpm add ocrbase ```</Tab>
-  <Tab value="yarn">```bash yarn add ocrbase ```</Tab>
+  <Tab value="bun">```bash bun add ocrbase-sdk ```</Tab>
+  <Tab value="npm">```bash npm install ocrbase-sdk ```</Tab>
+  <Tab value="pnpm">```bash pnpm add ocrbase-sdk ```</Tab>
+  <Tab value="yarn">```bash yarn add ocrbase-sdk ```</Tab>
 </Tabs>
 
 ## Quick start
 
 ```ts
-import { extract, parse } from "ocrbase";
+import { extract, parse } from "ocrbase-sdk";
 
 const { text } = await parse("./document.pdf");
 const { object } = await extract("./invoice.pdf", {
@@ -36,7 +36,7 @@ const { object } = await extract("./invoice.pdf", {
 Convert documents to markdown via OCR. Returns the full text and per-page content.
 
 ```ts
-import { parse } from "ocrbase";
+import { parse } from "ocrbase-sdk";
 
 const result = await parse("./document.pdf");
 
@@ -52,7 +52,7 @@ console.log(result.metadata.pageCount); // Number of pages
 Extract structured data from documents using a schema.
 
 ```ts
-import { extract } from "ocrbase";
+import { extract } from "ocrbase-sdk";
 
 const result = await extract("./invoice.pdf", {
   vendor: "string",
@@ -70,7 +70,7 @@ Use this when you want a reusable client instance and explicit `{ data, error }`
 results.
 
 ```ts
-import { createOcrBase } from "ocrbase";
+import { createOcrBase } from "ocrbase-sdk";
 
 const ocr = createOcrBase({ apiKey: "sk_..." });
 const result = await ocr.parse({ file: "./document.pdf" });
@@ -119,8 +119,8 @@ await parse(readableStream, { fileName: "doc.pdf" });
 The SDK includes React Query hooks for use in React applications:
 
 ```tsx
-import { createOcrBase } from "ocrbase";
-import { useOcrParse, useOcrExtract } from "ocrbase/react";
+import { createOcrBase } from "ocrbase-sdk";
+import { useOcrParse, useOcrExtract } from "ocrbase-sdk/react";
 
 const ocr = createOcrBase({ apiKey: "sk_..." });
 
