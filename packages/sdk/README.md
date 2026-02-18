@@ -1,4 +1,4 @@
-# `ocrbase`
+# `ocrbase-sdk`
 
 TypeScript SDK for ocrbase powered by Eden Treaty.
 
@@ -7,17 +7,17 @@ This SDK waits for job completion over WebSockets (no polling).
 ## Install
 
 ```bash
-bun add ocrbase
+bun add ocrbase-sdk
 ```
 
 ```bash
-npm install ocrbase
+npm install ocrbase-sdk
 ```
 
 ## Quick start
 
 ```ts
-import { parse } from "ocrbase";
+import { parse } from "ocrbase-sdk";
 
 const { text } = await parse("./invoice.pdf");
 console.log(text);
@@ -29,7 +29,7 @@ console.log(text);
 ## Structured extraction
 
 ```ts
-import { extract } from "ocrbase";
+import { extract } from "ocrbase-sdk";
 
 const { object } = await extract("./invoice.pdf", {
   vendor: "string",
@@ -50,7 +50,7 @@ By default, the SDK opens a WebSocket automatically:
 If your runtime does not provide `WebSocket`, pass a custom socket factory:
 
 ```ts
-import { parse } from "ocrbase";
+import { parse } from "ocrbase-sdk";
 
 await parse("./invoice.pdf", {
   createWebSocket: (url, apiKey) =>
@@ -66,7 +66,7 @@ Use `createOcrBase()` when you want reusable client instances and `{ data, error
 results instead of thrown errors.
 
 ```ts
-import { createOcrBase } from "ocrbase";
+import { createOcrBase } from "ocrbase-sdk";
 
 const ocr = createOcrBase();
 const result = await ocr.parse({ file: "./invoice.pdf" });
@@ -101,8 +101,8 @@ await parse("https://example.com/report.pdf");
 ## React Query hooks
 
 ```ts
-import { createOcrBase } from "ocrbase";
-import { useOcrExtract, useOcrParse } from "ocrbase/react";
+import { createOcrBase } from "ocrbase-sdk";
+import { useOcrExtract, useOcrParse } from "ocrbase-sdk/react";
 
 const ocr = createOcrBase({ apiKey: process.env.NEXT_PUBLIC_API_KEY! });
 
