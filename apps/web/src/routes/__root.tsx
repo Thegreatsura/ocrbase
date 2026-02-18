@@ -1,3 +1,4 @@
+import { PostHogProvider } from "@posthog/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
   HeadContent,
@@ -12,17 +13,37 @@ import type { RouterContext } from "@/router";
 import { queryClient } from "@/lib/query-client";
 import appCss from "@/styles.css?url";
 
+const posthogKey = import.meta.env.VITE_POSTHOG_KEY;
+const posthogHost = import.meta.env.VITE_POSTHOG_HOST;
+
+const AppContent = () => (
+  <RootProvider>
+    <QueryClientProvider client={queryClient}>
+      <Outlet />
+    </QueryClientProvider>
+  </RootProvider>
+);
+
 const RootComponent = () => (
   <html lang="en" suppressHydrationWarning>
     <head>
       <HeadContent />
     </head>
     <body className="min-h-screen bg-background text-foreground antialiased pb-[env(safe-area-inset-bottom)]">
-      <RootProvider>
-        <QueryClientProvider client={queryClient}>
-          <Outlet />
-        </QueryClientProvider>
-      </RootProvider>
+      {posthogKey ? (
+        <PostHogProvider
+          apiKey={posthogKey}
+          options={{
+            api_host: posthogHost,
+            capture_pageleave: true,
+            capture_pageview: true,
+          }}
+        >
+          <AppContent />
+        </PostHogProvider>
+      ) : (
+        <AppContent />
+      )}
       <Scripts />
     </body>
   </html>

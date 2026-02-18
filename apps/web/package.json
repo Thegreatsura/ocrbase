@@ -14,6 +14,7 @@
     "@ocrbase/db": "workspace:*",
     "@ocrbase/env": "workspace:*",
     "@ocrbase/server": "workspace:*",
+    "@posthog/react": "^1.8.0",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-query": "^5.90.21",
     "@tanstack/react-router": "^1.160.0",
