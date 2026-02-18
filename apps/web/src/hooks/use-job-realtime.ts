@@ -44,25 +44,28 @@ const updateJobsListStatus = (
   jobId: string,
   status: JobListItem["status"]
 ) => {
-  queryClient.setQueryData<InfiniteData<JobsPageResponse>>(["jobs"], (old) => {
-    if (!old) {
-      return old;
+  queryClient.setQueriesData<InfiniteData<JobsPageResponse>>(
+    { queryKey: ["jobs"] },
+    (old) => {
+      if (!old) {
+        return old;
+      }
+      return {
+        ...old,
+        pages: old.pages.map((page) => ({
+          ...page,
+          data: page.data.map((job) =>
+            job.id === jobId
+              ? {
+                  ...job,
+                  status: resolveMonotonicStatus(job.status, status),
+                }
+              : job
+          ),
+        })),
+      };
     }
-    return {
-      ...old,
-      pages: old.pages.map((page) => ({
-        ...page,
-        data: page.data.map((job) =>
-          job.id === jobId
-            ? {
-                ...job,
-                status: resolveMonotonicStatus(job.status, status),
-              }
-            : job
-        ),
-      })),
-    };
-  });
+  );
 };
 
 const isTerminalStatus = (

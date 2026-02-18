@@ -23,6 +23,8 @@ export const formatJobResponse = (job: Job): JobResponse => ({
   hints: job.hints,
   id: job.id,
   jsonResult: job.jsonResult ?? null,
+  llmModel: job.llmModel,
+  llmProvider: job.llmProvider,
   markdownResult: job.markdownResult,
   mimeType: job.mimeType,
   organizationId: job.organizationId,

@@ -17,9 +17,6 @@
 # Dependencies (will be installed in container)
 node_modules
 
-# Apps not needed for server build
-apps/web
-
 # Build artifacts
 dist
 *.log

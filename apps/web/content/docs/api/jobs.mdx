@@ -1,0 +1,119 @@
+---
+title: Jobs
+description: Monitor and manage document processing jobs.
+---
+
+## List jobs
+
+### `GET /v1/jobs`
+
+```bash
+curl https://api.ocrbase.dev/v1/jobs \
+  -H "Authorization: Bearer sk_your_api_key"
+```
+
+### Query parameters
+
+| Parameter   | Type     | Default     | Description                            |
+| ----------- | -------- | ----------- | -------------------------------------- |
+| `limit`     | `number` | `20`        | Results per page (1-100)               |
+| `page`      | `number` | `1`         | Page number                            |
+| `sortBy`    | `string` | `createdAt` | Sort field: `createdAt` or `updatedAt` |
+| `sortOrder` | `string` | `desc`      | Sort order: `asc` or `desc`            |
+| `status`    | `string` | —           | Filter by status                       |
+| `type`      | `string` | —           | Filter by type: `parse` or `extract`   |
+
+### Response
+
+```json
+{
+  "data": [
+    {
+      "id": "job_abc123",
+      "type": "parse",
+      "status": "completed",
+      "fileName": "invoice.pdf",
+      "fileSize": 245000,
+      "mimeType": "application/pdf",
+      "pageCount": 3,
+      "processingTimeMs": 2150,
+      "createdAt": "2024-01-15T10:30:00.000Z",
+      "completedAt": "2024-01-15T10:30:02.150Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 42,
+    "totalPages": 3
+  }
+}
+```
+
+## Get job
+
+### `GET /v1/jobs/{id}`
+
+```bash
+curl https://api.ocrbase.dev/v1/jobs/job_abc123 \
+  -H "Authorization: Bearer sk_your_api_key"
+```
+
+Returns the full job object including `markdownResult` and `jsonResult` when completed.
+
+## Download results
+
+### `POST /v1/jobs/{id}/download`
+
+Download the job result as a file.
+
+```bash
+# Download as markdown
+curl -X POST "https://api.ocrbase.dev/v1/jobs/job_abc123/download?format=md" \
+  -H "Authorization: Bearer sk_your_api_key" \
+  -o result.md
+
+# Download as JSON (extract jobs only)
+curl -X POST "https://api.ocrbase.dev/v1/jobs/job_abc123/download?format=json" \
+  -H "Authorization: Bearer sk_your_api_key" \
+  -o result.json
+```
+
+| Parameter | Type     | Required | Description                                   |
+| --------- | -------- | -------- | --------------------------------------------- |
+| `format`  | `string` | Yes      | `md` for markdown, `json` for structured data |
+
+## Job object
+
+```ts
+interface Job {
+  id: string; // "job_xxx"
+  type: "parse" | "extract";
+  status: "pending" | "processing" | "extracting" | "completed" | "failed";
+
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  sourceUrl: string | null;
+
+  schemaId: string | null; // Extract jobs only
+  hints: string | null;
+
+  markdownResult: string | null; // OCR output
+  jsonResult: unknown | null; // Extracted data (extract only)
+
+  pageCount: number | null;
+  tokenCount: number | null;
+  llmModel: string | null;
+  llmProvider: string | null;
+
+  errorCode: string | null;
+  errorMessage: string | null;
+  retryCount: number;
+
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  processingTimeMs: number | null;
+}
+```

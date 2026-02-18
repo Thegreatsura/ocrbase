@@ -1,0 +1,104 @@
+---
+title: API Overview
+description: REST API reference for ocrbase.
+---
+
+## Base URL
+
+```
+https://api.ocrbase.dev/v1
+```
+
+For self-hosted instances, replace with your server URL.
+
+## Authentication
+
+All API requests require a Bearer token. Create an API key from the dashboard or via the [Keys API](/docs/api/keys).
+
+```bash
+curl https://api.ocrbase.dev/v1/parse \
+  -H "Authorization: Bearer sk_your_api_key" \
+  -F file=@document.pdf
+```
+
+## Endpoints
+
+### Documents
+
+| Method | Endpoint      | Description                                     |
+| ------ | ------------- | ----------------------------------------------- |
+| `POST` | `/v1/parse`   | [Parse a document to markdown](/docs/api/parse) |
+| `POST` | `/v1/extract` | [Extract structured data](/docs/api/extract)    |
+
+### Jobs
+
+| Method | Endpoint                 | Description                                         |
+| ------ | ------------------------ | --------------------------------------------------- |
+| `GET`  | `/v1/jobs`               | [List jobs](/docs/api/jobs)                         |
+| `GET`  | `/v1/jobs/{id}`          | [Get job details](/docs/api/jobs#get-job)           |
+| `POST` | `/v1/jobs/{id}/download` | [Download results](/docs/api/jobs#download-results) |
+
+### Schemas
+
+| Method   | Endpoint               | Description                                   |
+| -------- | ---------------------- | --------------------------------------------- |
+| `POST`   | `/v1/schemas`          | [Create schema](/docs/api/schemas#create)     |
+| `GET`    | `/v1/schemas`          | [List schemas](/docs/api/schemas#list)        |
+| `GET`    | `/v1/schemas/{id}`     | [Get schema](/docs/api/schemas#get)           |
+| `PATCH`  | `/v1/schemas/{id}`     | [Update schema](/docs/api/schemas#update)     |
+| `DELETE` | `/v1/schemas/{id}`     | [Delete schema](/docs/api/schemas#delete)     |
+| `POST`   | `/v1/schemas/generate` | [Generate schema](/docs/api/schemas#generate) |
+
+### API Keys
+
+| Method   | Endpoint               | Description                           |
+| -------- | ---------------------- | ------------------------------------- |
+| `POST`   | `/v1/keys`             | [Create key](/docs/api/keys#create)   |
+| `GET`    | `/v1/keys`             | [List keys](/docs/api/keys#list)      |
+| `GET`    | `/v1/keys/{id}`        | [Get key + usage](/docs/api/keys#get) |
+| `PATCH`  | `/v1/keys/{id}`        | [Update key](/docs/api/keys#update)   |
+| `DELETE` | `/v1/keys/{id}`        | [Delete key](/docs/api/keys#delete)   |
+| `POST`   | `/v1/keys/{id}/revoke` | [Revoke key](/docs/api/keys#revoke)   |
+
+### Real-time
+
+| Method | Endpoint       | Description                                 |
+| ------ | -------------- | ------------------------------------------- |
+| `WS`   | `/v1/realtime` | [WebSocket job updates](/docs/api/realtime) |
+
+### Health
+
+| Method | Endpoint           | Description                            |
+| ------ | ------------------ | -------------------------------------- |
+| `GET`  | `/v1/health/live`  | Liveness probe                         |
+| `GET`  | `/v1/health/ready` | Readiness probe with dependency checks |
+
+## Async processing
+
+Parse and extract endpoints return immediately with a `202 Accepted` response containing the job object. Poll `GET /v1/jobs/{id}` or subscribe via [WebSocket](/docs/api/realtime) for updates.
+
+```
+POST /v1/parse  →  202 { id: "job_xxx", status: "pending", ... }
+
+GET /v1/jobs/job_xxx  →  200 { status: "processing", ... }
+GET /v1/jobs/job_xxx  →  200 { status: "completed", markdownResult: "...", ... }
+```
+
+## Error responses
+
+Errors return a JSON body with `message`:
+
+```json
+{
+  "message": "Unauthorized"
+}
+```
+
+| Status | Description                               |
+| ------ | ----------------------------------------- |
+| `400`  | Bad request — invalid input               |
+| `401`  | Unauthorized — missing or invalid API key |
+| `404`  | Not found                                 |
+| `429`  | Rate limited                              |
+| `500`  | Server error                              |
+| `503`  | Service unavailable — OCR service down    |

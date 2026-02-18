@@ -1,5 +1,5 @@
-import { env } from "@ocrbase/env/web";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import {
   Check,
   Copy,
@@ -65,6 +65,51 @@ interface ApiKeysSheetProps {
   onOpenChange: (open: boolean) => void;
 }
 
+const readErrorMessage = (value: unknown): string | null => {
+  if (typeof value === "string") {
+    const message = value.trim();
+    if (message.length > 0 && message !== "[object Object]") {
+      return message;
+    }
+    return null;
+  }
+
+  if (value instanceof Error) {
+    return readErrorMessage(value.message) ?? readErrorMessage(value.cause);
+  }
+
+  if (typeof value === "object" && value !== null) {
+    const record = value as Record<string, unknown>;
+
+    const message =
+      readErrorMessage(record.message) ??
+      readErrorMessage(record.error) ??
+      readErrorMessage(record.detail) ??
+      readErrorMessage(record.cause);
+    if (message) {
+      return message;
+    }
+
+    if (Array.isArray(record.errors)) {
+      for (const item of record.errors) {
+        const nestedMessage = readErrorMessage(item);
+        if (nestedMessage) {
+          return nestedMessage;
+        }
+      }
+    }
+
+    if ("value" in record) {
+      return readErrorMessage(record.value);
+    }
+  }
+
+  return null;
+};
+
+const getApiErrorMessage = (error: unknown, fallback: string): string =>
+  readErrorMessage(error) ?? fallback;
+
 const ApiKeyItem = React.memo(
   ({
     apiKey,
@@ -87,7 +132,7 @@ const ApiKeyItem = React.memo(
 
     return (
       <div
-        className={`rounded-lg border p-3 ${apiKey.isActive ? "" : "opacity-60"}`}
+        className={`rounded-md border p-3 ${apiKey.isActive ? "" : "opacity-60"}`}
       >
         <div className="flex items-start justify-between">
           <div className="min-w-0 flex-1">
@@ -111,7 +156,7 @@ const ApiKeyItem = React.memo(
                 aria-label="Copy API key prefix"
               >
                 {isCopied ? (
-                  <Check className="size-3 text-green-500" />
+                  <Check className="size-3 text-success" />
                 ) : (
                   <Copy className="size-3" />
                 )}
@@ -166,10 +211,13 @@ export const ApiKeysSheet = ({ open, onOpenChange }: ApiKeysSheetProps) => {
     enabled: open,
     queryFn: async () => {
       const response = await api.v1.keys.get();
-      if (response.data && Array.isArray(response.data)) {
-        return response.data as ApiKey[];
+      if (response.error) {
+        throw response.error;
       }
-      return [];
+      if (!response.data || !Array.isArray(response.data)) {
+        throw new Error("Invalid API response while loading API keys.");
+      }
+      return response.data as ApiKey[];
     },
     queryKey: ["api-keys"],
   });
@@ -182,27 +230,40 @@ export const ApiKeysSheet = ({ open, onOpenChange }: ApiKeysSheetProps) => {
   const [error, setError] = useState<string | null>(null);
   const [keyToRevoke, setKeyToRevoke] = useState<ApiKey | null>(null);
 
-  const displayError =
-    error ?? (fetchError ? "Failed to load API keys." : null);
+  let displayError = error;
+  if (!displayError && fetchError) {
+    displayError = getApiErrorMessage(fetchError, "Failed to load API keys.");
+  }
 
   const handleCreate = useCallback(async () => {
     if (!newKeyName.trim()) {
       return;
     }
 
+    setError(null);
     setIsCreating(true);
     try {
       const response = await api.v1.keys.post({
         name: newKeyName.trim(),
       });
 
-      if (response.data && "key" in response.data) {
-        setNewKey(response.data.key as string);
-        setNewKeyName("");
-        queryClient.invalidateQueries({ queryKey: ["api-keys"] });
+      if (response.error) {
+        throw response.error;
       }
-    } catch {
-      setError("Failed to create API key.");
+
+      if (
+        !response.data ||
+        !("key" in response.data) ||
+        typeof response.data.key !== "string"
+      ) {
+        throw new Error("Invalid API response while creating API key.");
+      }
+
+      setNewKey(response.data.key);
+      setNewKeyName("");
+      queryClient.invalidateQueries({ queryKey: ["api-keys"] });
+    } catch (error) {
+      setError(getApiErrorMessage(error, "Failed to create API key."));
     } finally {
       setIsCreating(false);
     }
@@ -213,11 +274,15 @@ export const ApiKeysSheet = ({ open, onOpenChange }: ApiKeysSheetProps) => {
       return;
     }
 
+    setError(null);
     try {
-      await api.v1.keys({ id: keyToRevoke.id }).revoke.post();
+      const response = await api.v1.keys({ id: keyToRevoke.id }).revoke.post();
+      if (response.error) {
+        throw response.error;
+      }
       queryClient.invalidateQueries({ queryKey: ["api-keys"] });
-    } catch {
-      setError("Failed to revoke API key.");
+    } catch (error) {
+      setError(getApiErrorMessage(error, "Failed to revoke API key."));
     } finally {
       setKeyToRevoke(null);
     }
@@ -290,15 +355,13 @@ export const ApiKeysSheet = ({ open, onOpenChange }: ApiKeysSheetProps) => {
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <a
-              href={`${env.VITE_SERVER_URL}/openapi`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              to="/docs/$"
               className="inline-flex items-center gap-1 text-sm text-primary underline-offset-4 hover:underline"
             >
               View API documentation
               <ExternalLink className="size-3" />
-            </a>
+            </Link>
           </EmptyContent>
         </Empty>
       );
@@ -341,7 +404,7 @@ export const ApiKeysSheet = ({ open, onOpenChange }: ApiKeysSheetProps) => {
             )}
             {/* New key display */}
             {newKey && (
-              <div className="shrink-0 rounded-lg border border-green-500/20 bg-green-500/10 p-3">
+              <div className="shrink-0 rounded-md border border-success/20 bg-success/10 p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-medium">
                     Copy now — you won&apos;t see it again
@@ -380,7 +443,7 @@ export const ApiKeysSheet = ({ open, onOpenChange }: ApiKeysSheetProps) => {
                     aria-label="Copy API key"
                   >
                     {copiedId === "new" ? (
-                      <Check className="size-3.5 text-green-500" />
+                      <Check className="size-3.5 text-success" />
                     ) : (
                       <Copy className="size-3.5" />
                     )}
@@ -423,15 +486,13 @@ export const ApiKeysSheet = ({ open, onOpenChange }: ApiKeysSheetProps) => {
           </div>
 
           <div className="border-t px-4 py-3">
-            <a
-              href={`${env.VITE_SERVER_URL}/openapi`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              to="/docs/$"
               className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
             >
               <ExternalLink className="size-3.5" />
               API Documentation
-            </a>
+            </Link>
           </div>
         </SheetContent>
       </Sheet>

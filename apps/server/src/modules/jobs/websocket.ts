@@ -93,15 +93,17 @@ export const jobsWebSocket = new Elysia().ws("/v1/realtime", {
   },
 
   async open(ws) {
-    const { job_id: jobId } = ws.data.query;
+    const { api_key: apiKeyQuery, job_id: jobId } = ws.data.query;
 
     let userId: string;
     let organizationId: string;
 
     // Try API key auth first (skip usage tracking for websocket)
-    const apiKeyAuth = await validateApiKey(ws.data.headers?.authorization, {
-      updateUsage: false,
-    });
+    const authHeader =
+      typeof apiKeyQuery === "string" && apiKeyQuery.length > 0
+        ? `Bearer ${apiKeyQuery}`
+        : ws.data.headers?.authorization;
+    const apiKeyAuth = await validateApiKey(authHeader, { updateUsage: false });
     if (apiKeyAuth) {
       ({ userId } = apiKeyAuth);
       ({ organizationId } = apiKeyAuth);
@@ -180,6 +182,7 @@ export const jobsWebSocket = new Elysia().ws("/v1/realtime", {
   },
 
   query: t.Object({
+    api_key: t.Optional(t.String()),
     job_id: t.String(),
   }),
 

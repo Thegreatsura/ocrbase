@@ -1,0 +1,89 @@
+---
+title: Introduction
+description: ocrbase converts PDFs and images into structured data using OCR and schema-driven extraction.
+---
+
+## What is ocrbase?
+
+ocrbase is an open-source platform for converting documents into structured data. It combines state-of-the-art OCR (PaddleOCR-VL-1.5) with LLM-powered extraction to turn PDFs and images into typed JSON.
+
+### Key features
+
+<Cards>
+  <Card
+    title="Schema-Driven Extraction"
+    description="Define your output schema in TypeScript or JSON Schema and get validated, typed data back."
+    href="/docs/sdk/schemas"
+  />
+  <Card
+    title="High Accuracy"
+    description="PaddleOCR-VL-1.5 scores 94.5 on OmniDocBench, outperforming AWS Textract, Azure Doc AI, and GPT-4o."
+  />
+  <Card
+    title="Queue Architecture"
+    description="Process thousands of documents concurrently with BullMQ-backed job queue and real-time WebSocket updates."
+    href="/docs/api/realtime"
+  />
+  <Card
+    title="TypeScript SDK"
+    description="First-class TypeScript support with type-safe schemas, autocomplete, and validation."
+    href="/docs/sdk"
+  />
+  <Card
+    title="Self-Hostable"
+    description="Run on your own infrastructure for full control over data and costs."
+    href="/docs/self-hosting"
+  />
+  <Card
+    title="Open Source"
+    description="MIT licensed. Inspect, modify, and contribute to every line of the pipeline."
+  />
+</Cards>
+
+### How it works
+
+<Steps>
+  <Step>
+    ### Parse
+
+    Upload a PDF or image. ocrbase converts it to clean markdown using vision-language OCR.
+
+  </Step>
+  <Step>
+    ### Extract
+
+    Provide a schema describing your desired output. An LLM extracts structured JSON from the parsed markdown.
+
+  </Step>
+  <Step>
+    ### Use
+
+    Get typed, validated data ready for your application.
+
+  </Step>
+</Steps>
+
+## Next steps
+
+<Cards>
+  <Card
+    title="Quick Start"
+    description="Get up and running in minutes."
+    href="/docs/quickstart"
+  />
+  <Card
+    title="SDK Reference"
+    description="Learn the TypeScript SDK."
+    href="/docs/sdk"
+  />
+  <Card
+    title="API Reference"
+    description="Use the REST API directly."
+    href="/docs/api"
+  />
+  <Card
+    title="Self-Hosting"
+    description="Deploy on your own infrastructure."
+    href="/docs/self-hosting"
+  />
+</Cards>

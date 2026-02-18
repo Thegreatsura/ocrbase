@@ -42,6 +42,28 @@ services:
         reservations:
           memory: 256M
 
+  # Web App (TanStack Start SSR)
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        - VITE_SERVER_URL=${VITE_SERVER_URL:-http://localhost:3000}
+    container_name: ocrbase-web
+    ports:
+      - "${WEB_PORT:-3001}:3001"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - server
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
   # Background Worker (compiled binary)
   worker:
     build:

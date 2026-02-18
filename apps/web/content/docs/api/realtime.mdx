@@ -1,0 +1,128 @@
+---
+title: Real-time
+description: WebSocket API for real-time job updates.
+---
+
+Subscribe to job progress via WebSocket instead of polling.
+
+## Connection
+
+```
+wss://api.ocrbase.dev/v1/realtime?job_id=job_abc123
+```
+
+For self-hosted instances, replace the host with your server URL.
+
+## Authentication
+
+Pass your API key as a query parameter:
+
+```ts
+const ws = new WebSocket(
+  "wss://api.ocrbase.dev/v1/realtime?job_id=job_abc123&api_key=sk_..."
+);
+```
+
+You can also authenticate with an `Authorization: Bearer sk_...` header in
+runtimes that support custom WebSocket headers (for example Bun).
+
+## Message types
+
+### Status update
+
+Sent when the job status changes.
+
+```json
+{
+  "type": "status",
+  "jobId": "job_abc123",
+  "data": {
+    "status": "processing",
+    "processingTimeMs": null
+  }
+}
+```
+
+### Completed
+
+Sent when the job finishes successfully. Includes the results.
+
+```json
+{
+  "type": "completed",
+  "jobId": "job_abc123",
+  "data": {
+    "status": "completed",
+    "markdownResult": "# Invoice #1234\n...",
+    "jsonResult": { "vendor": "Acme Corp", "total": 1420.0 },
+    "processingTimeMs": 4200
+  }
+}
+```
+
+### Error
+
+Sent when the job fails.
+
+```json
+{
+  "type": "error",
+  "jobId": "job_abc123",
+  "data": {
+    "error": "OCR service unavailable",
+    "status": "failed"
+  }
+}
+```
+
+### Pong
+
+Response to a keep-alive ping.
+
+```json
+{
+  "type": "pong",
+  "jobId": "job_abc123"
+}
+```
+
+## Example
+
+### Browser
+
+```ts
+const ws = new WebSocket(
+  "wss://api.ocrbase.dev/v1/realtime?job_id=job_abc123&api_key=sk_..."
+);
+
+ws.addEventListener("message", (event) => {
+  const msg = JSON.parse(event.data);
+
+  switch (msg.type) {
+    case "status":
+      console.log(`Job ${msg.jobId}: ${msg.data.status}`);
+      break;
+    case "completed":
+      console.log("Result:", msg.data.markdownResult);
+      ws.close();
+      break;
+    case "error":
+      console.error("Failed:", msg.data.error);
+      ws.close();
+      break;
+  }
+});
+```
+
+### SDK
+
+The SDK handles WebSocket connections automatically when you call `parse()` or
+`extract()`. Configure reconnect behavior via client options:
+
+```ts
+const ocr = createOcrBase({
+  apiKey: "sk_...",
+  wsMaxReconnectAttempts: 5,
+  wsReconnectBaseDelayMs: 500,
+});
+```

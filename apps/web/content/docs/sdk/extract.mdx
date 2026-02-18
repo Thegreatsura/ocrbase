@@ -1,0 +1,167 @@
+---
+title: extract()
+description: Extract structured data from documents using a schema.
+---
+
+## Usage
+
+```ts
+import { extract } from "ocrbase";
+
+const result = await extract("./invoice.pdf", {
+  vendor: "string",
+  total: "number",
+});
+
+console.log(result.object);
+// { vendor: "Acme Corp", total: 1420.00 }
+```
+
+## Input
+
+```ts
+type DocumentInput =
+  | ArrayBuffer
+  | ArrayBufferView
+  | Blob
+  | ReadableStream<Uint8Array>
+  | SharedArrayBuffer
+  | string
+  | URL;
+
+interface ExtractDocumentOptions<TSchema> {
+  /** Optional filename */
+  fileName?: string;
+  /** Human-readable description of what to extract */
+  schemaDescription?: string;
+  /** Name for the schema */
+  schemaName?: string;
+  /** Additional extraction instructions */
+  prompt?: string;
+  /** Persist schema for reuse (default: false) */
+  keepSchema?: boolean;
+  /** MIME type override */
+  mimeType?: string;
+  /** Custom timeout in milliseconds */
+  timeoutMs?: number;
+}
+
+interface ExtractResult<TData> {
+  data: TData;
+  object: TData;
+  confidence: number | null;
+  metadata: {
+    jobId: string;
+    model: string;
+    pageCount: number;
+    processingMs: number;
+  };
+}
+
+type InferSchemaOutput<TSchema> = unknown;
+
+declare function extract<TSchema>(
+  file: DocumentInput,
+  schema: TSchema,
+  options?: ExtractDocumentOptions<TSchema>
+): Promise<ExtractResult<InferSchemaOutput<TSchema>>>;
+```
+
+## Output
+
+```ts
+interface ExtractResult<TData> {
+  /** Extracted structured data matching your schema */
+  data: TData;
+  /** Alias of `data` for AI-SDK-like ergonomics */
+  object: TData;
+  /** Confidence score (0-1) or null */
+  confidence: number | null;
+  /** Processing metadata */
+  metadata: {
+    jobId: string;
+    model: string;
+    pageCount: number;
+    processingMs: number;
+  };
+}
+```
+
+## Examples
+
+### Simple schema
+
+```ts
+const result = await extract("./receipt.pdf", {
+  store: "string",
+  date: "date",
+  total: "number",
+  items: [
+    {
+      name: "string",
+      price: "number",
+    },
+  ],
+});
+```
+
+### With Zod
+
+```ts
+import { extract } from "ocrbase";
+import { z } from "zod";
+
+const InvoiceSchema = z.object({
+  invoiceNumber: z.string(),
+  date: z.string(),
+  vendor: z.object({
+    name: z.string(),
+    address: z.string(),
+  }),
+  lineItems: z.array(
+    z.object({
+      description: z.string(),
+      quantity: z.number(),
+      unitPrice: z.number(),
+    })
+  ),
+  total: z.number(),
+});
+
+const result = await extract("./invoice.pdf", InvoiceSchema);
+
+// result.object is fully typed as z.infer<typeof InvoiceSchema>
+```
+
+### With extraction hints
+
+Use `prompt` to give the LLM additional context:
+
+```ts
+const result = await extract(
+  "./bank-statement.pdf",
+  {
+    transactions: [
+      {
+        date: "date",
+        description: "string",
+        amount: "number",
+        type: "string",
+      },
+    ],
+  },
+  {
+    prompt: "Extract all transactions. For 'type', use 'debit' or 'credit'.",
+  }
+);
+```
+
+### Persist schema for reuse
+
+```ts
+const result = await extract("./invoice-1.pdf", invoiceSchema, {
+  schemaName: "Invoice",
+  schemaDescription: "Standard invoice extraction",
+  keepSchema: true, // Schema is saved server-side
+});
+```

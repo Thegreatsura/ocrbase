@@ -62,7 +62,7 @@ export const FileConstraints = {
 // ID patterns for validation
 export const IdPatterns = {
   job: "^job_[a-zA-Z0-9_-]+$",
-  key: "^key_[a-zA-Z0-9_-]+$",
+  key: "^ak_[a-zA-Z0-9_-]+$",
   schema: "^sch_[a-zA-Z0-9_-]+$",
 };
 

@@ -48,3 +48,8 @@ coverage
 .cache
 tmp
 temp
+
+# npm auth
+.npmrc
+# npm auth
+.npmrc

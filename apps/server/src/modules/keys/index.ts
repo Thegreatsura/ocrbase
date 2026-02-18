@@ -167,7 +167,7 @@ Includes recent request history, total request count, and aggregated stats.`,
       params: t.Object({
         id: t.String({
           description: "API key ID",
-          examples: ["key_abc123xyz"],
+          examples: ["ak_abc123xyz"],
           pattern: IdPatterns.key,
         }),
       }),
@@ -212,7 +212,7 @@ The key will immediately stop working but usage history is preserved. This actio
       params: t.Object({
         id: t.String({
           description: "API key ID",
-          examples: ["key_abc123xyz"],
+          examples: ["ak_abc123xyz"],
           pattern: IdPatterns.key,
         }),
       }),
@@ -257,7 +257,7 @@ This action cannot be undone. The key will immediately stop working.`,
       params: t.Object({
         id: t.String({
           description: "API key ID",
-          examples: ["key_abc123xyz"],
+          examples: ["ak_abc123xyz"],
           pattern: IdPatterns.key,
         }),
       }),

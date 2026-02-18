@@ -2,7 +2,7 @@ import type { JobUpdateMessage } from "@ocrbase/db/lib/enums";
 import type { InfiniteData } from "@tanstack/react-query";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Job, JobListItem } from "@/lib/queries";
 
@@ -46,7 +46,7 @@ const isTerminalStatus = (
 
 /**
  * Opens a shared WebSocket connection for each processing job,
- * updating only the sidebar's `["jobs"]` list cache as status changes.
+ * updating only the sidebar's `["jobs", *]` list cache as status changes.
  *
  * Individual job query invalidation is left to `useJobRealtime` to
  * avoid double-invalidation.
@@ -55,6 +55,7 @@ export const useProcessingJobsRealtime = (processingJobIds: string[]) => {
   const queryClient = useQueryClient();
   const queryClientRef = useRef(queryClient);
   queryClientRef.current = queryClient;
+  const [reconnectTick, setReconnectTick] = useState(0);
 
   const cleanupMap = useRef<Map<string, () => void>>(new Map());
   const fallbackActiveRef = useRef<Set<string>>(new Set());
@@ -66,6 +67,7 @@ export const useProcessingJobsRealtime = (processingJobIds: string[]) => {
   const terminalStatusesRef = useRef<
     Map<string, Extract<JobListItem["status"], "completed" | "failed">>
   >(new Map());
+  const applyingTerminalStatusesRef = useRef(false);
 
   const stopFallback = useCallback((jobId: string) => {
     fallbackActiveRef.current.delete(jobId);
@@ -84,43 +86,62 @@ export const useProcessingJobsRealtime = (processingJobIds: string[]) => {
     );
   }, []);
 
+  const restartRealtimeConnection = useCallback((jobId: string) => {
+    const cleanup = cleanupMap.current.get(jobId);
+    if (cleanup) {
+      cleanup();
+      cleanupMap.current.delete(jobId);
+    }
+    setReconnectTick((tick) => tick + 1);
+  }, []);
+
   const applyTerminalStatuses = useCallback(() => {
     const qc = queryClientRef.current;
     const terminalStatuses = terminalStatusesRef.current;
 
-    if (terminalStatuses.size === 0) {
+    if (terminalStatuses.size === 0 || applyingTerminalStatusesRef.current) {
       return;
     }
 
-    const current = qc.getQueryData<InfiniteData<JobsPageResponse>>(["jobs"]);
-    if (!current) {
-      return;
-    }
-
-    let changed = false;
-    const pages = current.pages.map((page) => {
-      let pageChanged = false;
-      const data = page.data.map((job) => {
-        const terminalStatus = terminalStatuses.get(job.id);
-        if (!terminalStatus || job.status === terminalStatus) {
-          return job;
+    applyingTerminalStatusesRef.current = true;
+    try {
+      const jobsQueries = qc.getQueryCache().findAll({ queryKey: ["jobs"] });
+      for (const jobsQuery of jobsQueries) {
+        const current = jobsQuery.state.data as
+          | InfiniteData<JobsPageResponse>
+          | undefined;
+        if (!current) {
+          continue;
         }
-        pageChanged = true;
-        changed = true;
-        return { ...job, status: terminalStatus };
-      });
 
-      return pageChanged ? { ...page, data } : page;
-    });
+        let changed = false;
+        const pages = current.pages.map((page) => {
+          let pageChanged = false;
+          const data = page.data.map((job) => {
+            const terminalStatus = terminalStatuses.get(job.id);
+            if (!terminalStatus || job.status === terminalStatus) {
+              return job;
+            }
+            pageChanged = true;
+            changed = true;
+            return { ...job, status: terminalStatus };
+          });
 
-    if (!changed) {
-      return;
+          return pageChanged ? { ...page, data } : page;
+        });
+
+        if (!changed) {
+          continue;
+        }
+
+        qc.setQueryData<InfiniteData<JobsPageResponse>>(jobsQuery.queryKey, {
+          ...current,
+          pages,
+        });
+      }
+    } finally {
+      applyingTerminalStatusesRef.current = false;
     }
-
-    qc.setQueryData<InfiniteData<JobsPageResponse>>(["jobs"], {
-      ...current,
-      pages,
-    });
   }, []);
 
   const setJobStatus = useCallback(
@@ -135,8 +156,8 @@ export const useProcessingJobsRealtime = (processingJobIds: string[]) => {
         }
       }
 
-      queryClientRef.current.setQueryData<InfiniteData<JobsPageResponse>>(
-        ["jobs"],
+      queryClientRef.current.setQueriesData<InfiniteData<JobsPageResponse>>(
+        { queryKey: ["jobs"] },
         (old) => {
           if (!old) {
             return old;
@@ -222,6 +243,7 @@ export const useProcessingJobsRealtime = (processingJobIds: string[]) => {
             debugJobsRealtime(jobId, "fallback_exhausted");
             markRealtimeUnavailable(jobId);
             stopFallback(jobId);
+            restartRealtimeConnection(jobId);
             return;
           }
         }
@@ -239,7 +261,12 @@ export const useProcessingJobsRealtime = (processingJobIds: string[]) => {
 
       tick();
     },
-    [markRealtimeUnavailable, setJobStatus, stopFallback]
+    [
+      markRealtimeUnavailable,
+      restartRealtimeConnection,
+      setJobStatus,
+      stopFallback,
+    ]
   );
 
   useEffect(() => {
@@ -295,7 +322,13 @@ export const useProcessingJobsRealtime = (processingJobIds: string[]) => {
 
       cleanupMap.current.set(jobId, cleanup);
     }
-  }, [processingJobIds, setJobStatus, startFallback, stopFallback]);
+  }, [
+    processingJobIds,
+    reconnectTick,
+    setJobStatus,
+    startFallback,
+    stopFallback,
+  ]);
 
   // Re-apply terminal statuses after any jobs cache update to prevent
   // stale fetches from regressing completed/failed items back to pending.
@@ -303,6 +336,9 @@ export const useProcessingJobsRealtime = (processingJobIds: string[]) => {
     const cache = queryClient.getQueryCache();
     return cache.subscribe((event) => {
       if (event.type !== "updated") {
+        return;
+      }
+      if (applyingTerminalStatusesRef.current) {
         return;
       }
       const [head] = event.query.queryKey;

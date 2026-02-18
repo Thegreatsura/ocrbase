@@ -1,0 +1,120 @@
+---
+title: Schema Formats
+description: Supported schema formats for structured data extraction.
+---
+
+The SDK supports three schema formats. All are converted to JSON Schema before being sent to the server.
+
+## Simple schema
+
+The most concise format. Use plain objects with string type names:
+
+```ts
+const schema = {
+  name: "string",
+  age: "number",
+  isActive: "boolean",
+  joinDate: "date",
+  tags: ["string"],
+  address: {
+    street: "string",
+    city: "string",
+    zip: "string",
+  },
+};
+```
+
+### Supported types
+
+| Type        | Description                      |
+| ----------- | -------------------------------- |
+| `"string"`  | Text value                       |
+| `"number"`  | Numeric value (integer or float) |
+| `"boolean"` | True or false                    |
+| `"date"`    | Date string                      |
+
+### Nesting
+
+Nest objects and arrays naturally:
+
+```ts
+const schema = {
+  company: "string",
+  employees: [
+    {
+      name: "string",
+      role: "string",
+      skills: ["string"],
+    },
+  ],
+};
+```
+
+## Zod schema
+
+Use Zod for runtime validation and full TypeScript inference:
+
+```ts
+import { extract } from "ocrbase";
+import { z } from "zod";
+
+const schema = z.object({
+  vendor: z.string(),
+  total: z.number(),
+  lineItems: z.array(
+    z.object({
+      description: z.string(),
+      quantity: z.number().int(),
+      unitPrice: z.number(),
+    })
+  ),
+});
+
+const result = await extract(file, schema);
+// result.object is typed as z.infer<typeof schema>
+```
+
+## JSON Schema
+
+Pass a standard JSON Schema object directly:
+
+```ts
+const schema = {
+  type: "object",
+  properties: {
+    invoiceNumber: { type: "string" },
+    date: { type: "string", format: "date" },
+    total: { type: "number" },
+    lineItems: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          description: { type: "string" },
+          quantity: { type: "integer" },
+          unitPrice: { type: "number" },
+        },
+        required: ["description", "quantity", "unitPrice"],
+      },
+    },
+  },
+  required: ["invoiceNumber", "date", "total"],
+};
+```
+
+## Schema management
+
+Schemas can be persisted server-side for reuse across extractions.
+
+### Save a schema
+
+```ts
+const result = await extract("./invoice.pdf", invoiceSchema, {
+  schemaName: "Invoice",
+  keepSchema: true,
+});
+```
+
+### Manage schemas via API
+
+Use the [Schemas API](/docs/api/schemas) to create, list, update, and delete schemas programmatically.

@@ -1,5 +1,5 @@
 {
-  "name": "ocrbase",
+  "name": "ocrbase-monorepo",
   "private": true,
   "workspaces": {
     "packages": [

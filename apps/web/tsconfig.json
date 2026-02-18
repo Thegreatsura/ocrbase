@@ -1,5 +1,5 @@
 {
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", ".source", "content"],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",
@@ -22,7 +22,8 @@
     "noUncheckedSideEffectImports": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "fumadocs-mdx:collections/*": [".source/*"]
     }
   }
 }

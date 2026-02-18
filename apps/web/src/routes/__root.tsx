@@ -5,6 +5,7 @@ import {
   Scripts,
   createRootRouteWithContext,
 } from "@tanstack/react-router";
+import { RootProvider } from "fumadocs-ui/provider/tanstack";
 
 import type { RouterContext } from "@/router";
 
@@ -12,14 +13,16 @@ import { queryClient } from "@/lib/query-client";
 import appCss from "@/styles.css?url";
 
 const RootComponent = () => (
-  <html lang="en">
+  <html lang="en" suppressHydrationWarning>
     <head>
       <HeadContent />
     </head>
     <body className="min-h-screen bg-background text-foreground antialiased pb-[env(safe-area-inset-bottom)]">
-      <QueryClientProvider client={queryClient}>
-        <Outlet />
-      </QueryClientProvider>
+      <RootProvider>
+        <QueryClientProvider client={queryClient}>
+          <Outlet />
+        </QueryClientProvider>
+      </RootProvider>
       <Scripts />
     </body>
   </html>

@@ -1,0 +1,107 @@
+---
+title: Quick Start
+description: Get started with ocrbase in under 5 minutes.
+---
+
+## Installation
+
+<Tabs items={["bun", "npm", "pnpm", "yarn"]}>
+  <Tab value="bun">```bash bun add ocrbase ```</Tab>
+  <Tab value="npm">```bash npm install ocrbase ```</Tab>
+  <Tab value="pnpm">```bash pnpm add ocrbase ```</Tab>
+  <Tab value="yarn">```bash yarn add ocrbase ```</Tab>
+</Tabs>
+
+## Setup
+
+The SDK reads your API key from `OCRBASE_API_KEY` automatically:
+
+```ts
+import { parse } from "ocrbase";
+
+const { text } = await parse("./invoice.pdf");
+console.log(text);
+```
+
+<Callout type="info" title="Environment variable">
+  The `apiKey` defaults to the `OCRBASE_API_KEY` environment variable if not
+  provided.
+</Callout>
+
+## Parse a document
+
+Convert a PDF to markdown:
+
+```ts
+import { parse } from "ocrbase";
+
+const { text } = await parse("./invoice.pdf");
+
+console.log(text);
+// # Invoice #1234
+// Date: 2024-01-15
+// ...
+```
+
+## Extract structured data
+
+Define a schema and extract typed JSON:
+
+```ts
+import { extract } from "ocrbase";
+
+const { object } = await extract("./invoice.pdf", {
+  vendor: "string",
+  invoiceNumber: "string",
+  total: "number",
+  lineItems: [
+    {
+      description: "string",
+      quantity: "number",
+      price: "number",
+    },
+  ],
+});
+
+console.log(object);
+// {
+//   vendor: "Acme Corp",
+//   invoiceNumber: "INV-1234",
+//   total: 1420.00,
+//   lineItems: [
+//     { description: "Widget A", quantity: 10, price: 42.00 },
+//     { description: "Widget B", quantity: 5, price: 200.00 }
+//   ]
+// }
+```
+
+## Supported file types
+
+| Format | MIME Type         |
+| ------ | ----------------- |
+| PDF    | `application/pdf` |
+| PNG    | `image/png`       |
+| JPEG   | `image/jpeg`      |
+| WebP   | `image/webp`      |
+| TIFF   | `image/tiff`      |
+| BMP    | `image/bmp`       |
+
+## Next steps
+
+<Cards>
+  <Card
+    title="SDK Reference"
+    description="Full SDK documentation."
+    href="/docs/sdk"
+  />
+  <Card
+    title="Schema Formats"
+    description="Learn about supported schema types."
+    href="/docs/sdk/schemas"
+  />
+  <Card
+    title="API Reference"
+    description="Use the REST API directly."
+    href="/docs/api"
+  />
+</Cards>

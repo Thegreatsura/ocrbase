@@ -1,0 +1,143 @@
+---
+title: SDK Overview
+description: TypeScript SDK for ocrbase with type-safe document parsing and extraction.
+---
+
+## Installation
+
+<Tabs items={["bun", "npm", "pnpm", "yarn"]}>
+  <Tab value="bun">```bash bun add ocrbase ```</Tab>
+  <Tab value="npm">```bash npm install ocrbase ```</Tab>
+  <Tab value="pnpm">```bash pnpm add ocrbase ```</Tab>
+  <Tab value="yarn">```bash yarn add ocrbase ```</Tab>
+</Tabs>
+
+## Quick start
+
+```ts
+import { extract, parse } from "ocrbase";
+
+const { text } = await parse("./document.pdf");
+const { object } = await extract("./invoice.pdf", {
+  vendor: "string",
+  total: "number",
+});
+```
+
+<Callout type="info" title="Environment variable">
+  `parse()` and `extract()` automatically use `OCRBASE_API_KEY` when `apiKey` is
+  not passed.
+</Callout>
+
+## Methods
+
+### `parse(file, options?)`
+
+Convert documents to markdown via OCR. Returns the full text and per-page content.
+
+```ts
+import { parse } from "ocrbase";
+
+const result = await parse("./document.pdf");
+
+console.log(result.text); // Full markdown
+console.log(result.pages); // Per-page content
+console.log(result.metadata.pageCount); // Number of pages
+```
+
+[Full parse reference](/docs/sdk/parse)
+
+### `extract(file, schema, options?)`
+
+Extract structured data from documents using a schema.
+
+```ts
+import { extract } from "ocrbase";
+
+const result = await extract("./invoice.pdf", {
+  vendor: "string",
+  total: "number",
+});
+
+console.log(result.object); // { vendor: "Acme Corp", total: 1420.00 }
+```
+
+[Full extract reference](/docs/sdk/extract)
+
+### `createOcrBase(config)` (advanced)
+
+Use this when you want a reusable client instance and explicit `{ data, error }`
+results.
+
+```ts
+import { createOcrBase } from "ocrbase";
+
+const ocr = createOcrBase({ apiKey: "sk_..." });
+const result = await ocr.parse({ file: "./document.pdf" });
+
+if (result.error) throw result.error;
+console.log(result.data.text);
+```
+
+#### Configuration options
+
+| Option                   | Type       | Default                   | Description              |
+| ------------------------ | ---------- | ------------------------- | ------------------------ |
+| `apiKey`                 | `string`   | `OCRBASE_API_KEY` env     | Your API key             |
+| `baseUrl`                | `string`   | `https://api.ocrbase.dev` | Server URL               |
+| `timeoutMs`              | `number`   | `300000` (5 min)          | Request timeout          |
+| `createWebSocket`        | `function` | —                         | Custom WebSocket factory |
+| `wsMaxReconnectAttempts` | `number`   | `5`                       | Max reconnect attempts   |
+| `wsReconnectBaseDelayMs` | `number`   | `500`                     | Base reconnect delay     |
+
+## Document input types
+
+The SDK accepts multiple input types for the `file` argument:
+
+```ts
+// File path (Node.js / Bun)
+await parse("./document.pdf");
+
+// URL string
+await parse("https://example.com/document.pdf");
+
+// URL object
+await parse(new URL("https://example.com/doc.pdf"));
+
+// ArrayBuffer
+await parse(arrayBuffer);
+
+// Blob (browser)
+await parse(blob);
+
+// ReadableStream
+await parse(readableStream, { fileName: "doc.pdf" });
+```
+
+## React hooks
+
+The SDK includes React Query hooks for use in React applications:
+
+```tsx
+import { createOcrBase } from "ocrbase";
+import { useOcrParse, useOcrExtract } from "ocrbase/react";
+
+const ocr = createOcrBase({ apiKey: "sk_..." });
+
+function MyComponent() {
+  const parse = useOcrParse(ocr);
+  const extract = useOcrExtract(ocr);
+
+  const handleParse = () => {
+    parse.mutate({ file: selectedFile });
+  };
+
+  if (parse.data) {
+    console.log(parse.data.text);
+  }
+}
+```
+
+<Callout type="info" title="React Query required">
+  The React hooks require `@tanstack/react-query` as a peer dependency.
+</Callout>

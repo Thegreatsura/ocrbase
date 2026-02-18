@@ -1,0 +1,115 @@
+---
+title: API Keys
+description: Create and manage API keys for authentication.
+---
+
+API keys authenticate requests to the ocrbase API. Keys are prefixed with `sk_` and the full key is only shown once at creation time.
+
+## Create
+
+### `POST /v1/keys`
+
+```bash
+curl -X POST https://api.ocrbase.dev/v1/keys \
+  -H "Authorization: Bearer sk_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Production" }'
+```
+
+### Response
+
+```json
+{
+  "id": "ak_abc123",
+  "name": "Production",
+  "key": "sk_live_abc123def456...",
+  "keyPrefix": "sk_live_abc",
+  "isActive": true,
+  "createdAt": "2024-01-15T10:30:00.000Z"
+}
+```
+
+The `key` field contains the full API key. **Store it securely** — it is not returned again.
+
+## List
+
+### `GET /v1/keys`
+
+```bash
+curl https://api.ocrbase.dev/v1/keys \
+  -H "Authorization: Bearer sk_your_api_key"
+```
+
+Returns an array of key objects (without the full `key` value).
+
+## Get
+
+### `GET /v1/keys/{id}`
+
+```bash
+curl https://api.ocrbase.dev/v1/keys/ak_abc123 \
+  -H "Authorization: Bearer sk_your_api_key"
+```
+
+Returns the key details along with usage statistics:
+
+```json
+{
+  "key": {
+    "id": "ak_abc123",
+    "name": "Production",
+    "keyPrefix": "sk_live_abc",
+    "isActive": true,
+    "requestCount": 1250,
+    "lastUsedAt": "2024-01-15T10:30:00.000Z"
+  },
+  "stats": {
+    "last24h": 42,
+    "last7d": 280,
+    "last30d": 1250
+  },
+  "recentUsage": [
+    {
+      "endpoint": "/v1/parse",
+      "method": "POST",
+      "statusCode": 202,
+      "createdAt": "2024-01-15T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+## Update
+
+### `PATCH /v1/keys/{id}`
+
+```bash
+curl -X PATCH https://api.ocrbase.dev/v1/keys/ak_abc123 \
+  -H "Authorization: Bearer sk_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Production v2" }'
+```
+
+## Delete
+
+### `DELETE /v1/keys/{id}`
+
+```bash
+curl -X DELETE https://api.ocrbase.dev/v1/keys/ak_abc123 \
+  -H "Authorization: Bearer sk_your_api_key"
+```
+
+Returns `204 No Content`.
+
+## Revoke
+
+### `POST /v1/keys/{id}/revoke`
+
+Disable a key without deleting it. Revoked keys return `401 Unauthorized` on use.
+
+```bash
+curl -X POST https://api.ocrbase.dev/v1/keys/ak_abc123/revoke \
+  -H "Authorization: Bearer sk_your_api_key"
+```
+
+Returns the updated key object with `isActive: false`.

@@ -7,6 +7,7 @@ import { useCallback, useState } from "react";
 
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
+import { useSession } from "@/lib/auth-client";
 
 const ACCEPTED_TYPES = [
   "application/pdf",
@@ -25,6 +26,7 @@ interface FileUploadProps {
 export const FileUpload = ({ mode, title, description }: FileUploadProps) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { data: session } = useSession();
   const [isDragging, setIsDragging] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -65,41 +67,53 @@ export const FileUpload = ({ mode, title, description }: FileUploadProps) => {
         type: mode,
       };
 
-      queryClient.setQueryData<InfiniteData<JobsPageResponse>>(
-        ["jobs"],
-        (old) => {
-          if (!old) {
-            return {
-              pageParams: [1],
-              pages: [
-                {
-                  data: [newJob],
-                  pagination: {
-                    currentPage: 1,
-                    hasNextPage: false,
-                    totalCount: 1,
-                  },
-                },
-              ],
-            };
-          }
+      const upsertJobsList = (
+        old: InfiniteData<JobsPageResponse> | undefined
+      ): InfiniteData<JobsPageResponse> => {
+        if (!old) {
           return {
-            ...old,
-            pages: old.pages.map((page, i) =>
-              i === 0
-                ? {
-                    ...page,
-                    data: [newJob, ...page.data],
-                    pagination: {
-                      ...page.pagination,
-                      totalCount: page.pagination.totalCount + 1,
-                    },
-                  }
-                : page
-            ),
+            pageParams: [1],
+            pages: [
+              {
+                data: [newJob],
+                pagination: {
+                  currentPage: 1,
+                  hasNextPage: false,
+                  totalCount: 1,
+                },
+              },
+            ],
           };
         }
+        return {
+          ...old,
+          pages: old.pages.map((page, i) =>
+            i === 0
+              ? {
+                  ...page,
+                  data: [newJob, ...page.data],
+                  pagination: {
+                    ...page.pagination,
+                    totalCount: page.pagination.totalCount + 1,
+                  },
+                }
+              : page
+          ),
+        };
+      };
+
+      queryClient.setQueriesData<InfiniteData<JobsPageResponse>>(
+        { queryKey: ["jobs"] },
+        upsertJobsList
       );
+
+      const activeOrganizationId = session?.session.activeOrganizationId;
+      if (activeOrganizationId) {
+        queryClient.setQueryData<InfiniteData<JobsPageResponse>>(
+          ["jobs", activeOrganizationId],
+          upsertJobsList
+        );
+      }
 
       const route = mode === "extract" ? "/extract/$jobId" : "/parse/$jobId";
       navigate({ params: { jobId: data.id }, to: route });
@@ -186,7 +200,7 @@ export const FileUpload = ({ mode, title, description }: FileUploadProps) => {
           </div>
         ) : (
           <>
-            <div className="flex size-14 items-center justify-center rounded-xl bg-secondary">
+            <div className="flex size-14 items-center justify-center rounded-md bg-secondary">
               <FilePlus2 className="size-7 text-foreground" />
             </div>
             <div className="text-center">

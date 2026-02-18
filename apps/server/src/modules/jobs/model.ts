@@ -59,6 +59,8 @@ const JobResponse = Type.Object({
   hints: Type.Union([Type.String(), Type.Null()]),
   id: Type.String({ pattern: JOB_ID_PATTERN }),
   jsonResult: Type.Union([Type.Unknown(), Type.Null()]),
+  llmModel: Type.Union([Type.String(), Type.Null()]),
+  llmProvider: Type.Union([Type.String(), Type.Null()]),
   markdownResult: Type.Union([Type.String(), Type.Null()]),
   mimeType: Type.String(),
   organizationId: Type.String(),

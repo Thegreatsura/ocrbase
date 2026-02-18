@@ -2,14 +2,8 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { GithubIcon } from "lucide-react";
 import { useCallback, useState } from "react";
 
+import { AuthLayout } from "@/components/auth-layout";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { authClient, signIn } from "@/lib/auth-client";
 
@@ -33,20 +27,25 @@ const LoginPage = () => {
   }, []);
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="text-xl">Welcome to ocrbase</CardTitle>
-          <CardDescription>Sign in to continue</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+    <AuthLayout>
+      <div className="mx-auto flex w-full max-w-sm flex-col justify-center gap-6">
+        <div className="flex flex-col gap-2 text-center">
+          <h1 className="font-semibold text-2xl tracking-tight">
+            Welcome to ocrbase
+          </h1>
+          <p className="text-muted-foreground text-sm text-balance">
+            Sign in with your GitHub account to continue
+          </p>
+        </div>
+
+        <div className="grid gap-4">
           {error && (
             <div className="bg-destructive/10 text-destructive rounded-md p-3 text-sm">
               {error}
             </div>
           )}
+
           <Button
-            variant="outline"
             className="w-full"
             onClick={handleGithubLogin}
             disabled={isLoading}
@@ -58,9 +57,9 @@ const LoginPage = () => {
             )}
             Continue with GitHub
           </Button>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </div>
+    </AuthLayout>
   );
 };
 

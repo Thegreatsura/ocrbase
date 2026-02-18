@@ -70,7 +70,7 @@ interface JobsPageResponse {
   };
 }
 
-export const jobsInfiniteQueryOptions = () =>
+export const jobsInfiniteQueryOptions = (organizationScope = "active") =>
   infiniteQueryOptions<
     JobsPageResponse,
     Error,
@@ -97,6 +97,6 @@ export const jobsInfiniteQueryOptions = () =>
       }
       return res.data as unknown as JobsPageResponse;
     },
-    queryKey: ["jobs"],
+    queryKey: ["jobs", organizationScope],
     staleTime: 60_000,
   });

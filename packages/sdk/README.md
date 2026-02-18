@@ -1,0 +1,111 @@
+# `ocrbase`
+
+TypeScript SDK for ocrbase powered by Eden Treaty.
+
+This SDK waits for job completion over WebSockets (no polling).
+
+## Install
+
+```bash
+bun add ocrbase
+```
+
+```bash
+npm install ocrbase
+```
+
+## Quick start
+
+```ts
+import { parse } from "ocrbase";
+
+const { text } = await parse("./invoice.pdf");
+console.log(text);
+```
+
+`parse()` and `extract()` automatically read `OCRBASE_API_KEY` from
+`process.env` when `apiKey` is not provided.
+
+## Structured extraction
+
+```ts
+import { extract } from "ocrbase";
+
+const { object } = await extract("./invoice.pdf", {
+  vendor: "string",
+  total: "number",
+  date: "date",
+});
+
+console.log(object.vendor);
+```
+
+## Runtime note
+
+By default, the SDK opens a WebSocket automatically:
+
+- Bun: uses `Authorization` header
+- Other runtimes with `WebSocket`: uses `api_key` query parameter
+
+If your runtime does not provide `WebSocket`, pass a custom socket factory:
+
+```ts
+import { parse } from "ocrbase";
+
+await parse("./invoice.pdf", {
+  createWebSocket: (url, apiKey) =>
+    new WebSocket(url, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    } as never),
+});
+```
+
+## Advanced client API
+
+Use `createOcrBase()` when you want reusable client instances and `{ data, error }`
+results instead of thrown errors.
+
+```ts
+import { createOcrBase } from "ocrbase";
+
+const ocr = createOcrBase();
+const result = await ocr.parse({ file: "./invoice.pdf" });
+
+if (result.error) throw result.error;
+console.log(result.data.text);
+```
+
+## Input types
+
+`file` supports:
+
+- `File` / `Blob` / `Bun.file(...)`
+- `Buffer`, `ArrayBuffer`, typed arrays
+- `ReadableStream<Uint8Array>`
+- local file path string (for example `"./invoice.pdf"`)
+- remote URL string (for example `"https://example.com/invoice.pdf"`)
+
+```ts
+await parse("https://example.com/report.pdf");
+```
+
+## Schema adapters
+
+`extract()` accepts:
+
+- Simple schema objects (`"string"`, `"number"`, `"boolean"`, `"integer"`, `"date"`)
+- Elysia `t.*` / TypeBox schema objects
+- Zod schemas
+- Raw JSON Schema
+
+## React Query hooks
+
+```ts
+import { createOcrBase } from "ocrbase";
+import { useOcrExtract, useOcrParse } from "ocrbase/react";
+
+const ocr = createOcrBase({ apiKey: process.env.NEXT_PUBLIC_API_KEY! });
+
+const parseMutation = useOcrParse(ocr);
+const extractMutation = useOcrExtract(ocr);
+```

@@ -1,0 +1,72 @@
+---
+title: Parse
+description: POST /v1/parse — Convert a document to markdown via OCR.
+---
+
+## `POST /v1/parse`
+
+Upload a document and convert it to markdown using PaddleOCR-VL-1.5.
+
+Returns a job object with status `pending`. The document is processed asynchronously.
+
+## Request
+
+### File upload (multipart)
+
+```bash
+curl -X POST https://api.ocrbase.dev/v1/parse \
+  -H "Authorization: Bearer sk_your_api_key" \
+  -F file=@invoice.pdf
+```
+
+### URL input (JSON)
+
+```bash
+curl -X POST https://api.ocrbase.dev/v1/parse \
+  -H "Authorization: Bearer sk_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "url": "https://example.com/document.pdf" }'
+```
+
+### Parameters
+
+| Parameter | Type     | Required               | Description                        |
+| --------- | -------- | ---------------------- | ---------------------------------- |
+| `file`    | `File`   | One of `file` or `url` | Document file (multipart upload)   |
+| `url`     | `string` | One of `file` or `url` | HTTP(S) URL to fetch document from |
+
+**Limits:** Max file size 50MB. Supported formats: PDF, PNG, JPEG, WebP, TIFF, BMP.
+
+## Response
+
+`202 Accepted`
+
+```json
+{
+  "id": "job_abc123",
+  "type": "parse",
+  "status": "pending",
+  "fileName": "invoice.pdf",
+  "fileSize": 245000,
+  "mimeType": "application/pdf",
+  "markdownResult": null,
+  "pageCount": null,
+  "createdAt": "2024-01-15T10:30:00.000Z",
+  "completedAt": null,
+  "processingTimeMs": null
+}
+```
+
+When completed, `GET /v1/jobs/{id}` returns:
+
+```json
+{
+  "id": "job_abc123",
+  "type": "parse",
+  "status": "completed",
+  "markdownResult": "# Invoice #1234\n\nDate: January 15, 2024\n...",
+  "pageCount": 3,
+  "processingTimeMs": 2150,
+  "completedAt": "2024-01-15T10:30:02.150Z"
+}
+```

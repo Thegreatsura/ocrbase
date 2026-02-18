@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import { useProcessingJobsRealtime } from "@/hooks/use-processing-jobs-realtime";
-import { signOut, useSession } from "@/lib/auth-client";
+import { authClient, signOut, useSession } from "@/lib/auth-client";
 import { isJobProcessing, jobsInfiniteQueryOptions } from "@/lib/queries";
 
 export const AppSidebar = ({
@@ -36,6 +36,7 @@ export const AppSidebar = ({
   const navigate = useNavigate();
   const routerState = useRouterState();
   const { data: session } = useSession();
+  const { data: activeOrganization } = authClient.useActiveOrganization();
   const [historyOpen, setHistoryOpen] = useState(true);
 
   const {
@@ -44,7 +45,9 @@ export const AppSidebar = ({
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
-  } = useInfiniteQuery(jobsInfiniteQueryOptions());
+  } = useInfiniteQuery(
+    jobsInfiniteQueryOptions(session?.session.activeOrganizationId ?? "active")
+  );
 
   const jobs = useMemo(
     () => jobsData?.pages.flatMap((page) => page.data) ?? [],
@@ -83,11 +86,14 @@ export const AppSidebar = ({
   // Determine active route
   const currentPath = routerState.location.pathname;
   const currentSearch = routerState.location.search as { mode?: string };
+  const organizationPath = activeOrganization?.slug
+    ? `/${activeOrganization.slug}`
+    : null;
+  const isPlaygroundPath =
+    currentPath === "/app" || currentPath === organizationPath;
   const isParseActive =
-    currentPath === "/app" &&
-    (!currentSearch.mode || currentSearch.mode === "parse");
-  const isExtractActive =
-    currentPath === "/app" && currentSearch.mode === "extract";
+    isPlaygroundPath && (!currentSearch.mode || currentSearch.mode === "parse");
+  const isExtractActive = isPlaygroundPath && currentSearch.mode === "extract";
 
   const handleSignOut = useCallback(async () => {
     await signOut();

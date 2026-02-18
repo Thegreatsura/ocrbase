@@ -7,6 +7,7 @@
   "ignorePatterns": [
     "packages/db",
     "packages/auth",
+    "apps/web/.source",
     "**/*.d.ts",
     "**/*.gen.ts"
   ],
@@ -26,6 +27,12 @@
       }
     },
     {
+      "files": ["apps/web/src/components/ui/chart.tsx"],
+      "rules": {
+        "complexity": "off"
+      }
+    },
+    {
       "files": [
         "**/*.test.ts",
         "**/*.test.tsx",
@@ -42,6 +49,14 @@
       "rules": {
         "import/no-nodejs-modules": "off",
         "import/no-relative-parent-imports": "off"
+      }
+    },
+    {
+      "files": ["packages/sdk/**/*.ts"],
+      "rules": {
+        "import/no-nodejs-modules": "off",
+        "promise/avoid-new": "off",
+        "promise/no-multiple-resolved": "off"
       }
     },
     {

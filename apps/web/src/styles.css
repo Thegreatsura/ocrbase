@@ -1,9 +1,33 @@
 @import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+@source "../../node_modules/fumadocs-ui/dist/**/*.js";
 
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
+
+/* Override fumadocs color variables to use the app's theme */
+:root,
+.dark {
+  --color-fd-background: var(--background);
+  --color-fd-foreground: var(--foreground);
+  --color-fd-muted: var(--muted);
+  --color-fd-muted-foreground: var(--muted-foreground);
+  --color-fd-popover: var(--popover);
+  --color-fd-popover-foreground: var(--popover-foreground);
+  --color-fd-card: var(--card);
+  --color-fd-card-foreground: var(--card-foreground);
+  --color-fd-border: var(--border);
+  --color-fd-primary: #0070f3;
+  --color-fd-primary-foreground: #ffffff;
+  --color-fd-secondary: var(--secondary);
+  --color-fd-secondary-foreground: var(--secondary-foreground);
+  --color-fd-accent: var(--accent);
+  --color-fd-accent-foreground: var(--accent-foreground);
+  --color-fd-ring: #0070f3;
+}
 
 :root {
   --background: #ffffff;
@@ -39,6 +63,8 @@
   --sidebar-accent-foreground: #0d0d0d;
   --sidebar-border: #e5e5e5;
   --sidebar-ring: #0d0d0d;
+  --success: #22c55e;
+  --success-foreground: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -75,6 +101,8 @@
     --sidebar-accent-foreground: #ffffff;
     --sidebar-border: #3d3d3d;
     --sidebar-ring: #ffffff;
+    --success: #4ade80;
+    --success-foreground: #ffffff;
   }
 }
 
@@ -115,6 +143,8 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
 }
 
 @layer base {
@@ -156,4 +186,124 @@
     background-color: var(--background);
     color: var(--foreground);
   }
+}
+
+/* Align sidebar padding with nav px-6 (24px) */
+#nd-sidebar > div:first-child,
+#nd-sidebar [data-radix-scroll-area-viewport] {
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* Docs body inline link color */
+.prose p a,
+.prose li a {
+  color: var(--color-fd-primary);
+}
+
+/* ── Syntax color tokens ── */
+:root {
+  --syntax-keyword: #0550ae;
+  --syntax-fn: #6639ba;
+  --syntax-string: #0a3069;
+  --syntax-number: #0550ae;
+  --syntax-comment: #6e7781;
+  --syntax-plain: #24292f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --syntax-keyword: #ff7b72;
+    --syntax-fn: #d2a8ff;
+    --syntax-string: #a5d6ff;
+    --syntax-number: #79c0ff;
+    --syntax-comment: #8b949e;
+    --syntax-plain: #e6edf3;
+  }
+}
+
+/* Shiki dark theme: use prefers-color-scheme to match the app's dark mode.
+   Specificity must match fumadocs' .shiki:not(.not-fumadocs-codeblock *) selector. */
+@media (prefers-color-scheme: dark) {
+  .shiki:not(.not-fumadocs-codeblock *) code span {
+    color: var(--shiki-dark);
+  }
+  .shiki:not(.not-fumadocs-codeblock *) {
+    background-color: var(--shiki-dark-bg);
+  }
+}
+
+/* HN pill – explicit colors for Safari/Chrome parity */
+.hn-pill {
+  border: 1px solid rgb(234 88 12 / 0.25);
+  background: linear-gradient(
+    to right,
+    rgb(255 247 237 / 0.5),
+    rgb(255 251 235 / 0.5)
+  );
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+}
+.hn-pill:hover {
+  border-color: rgb(234 88 12 / 0.4);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+.hn-pill-bold {
+  color: #ea580c;
+}
+.hn-pill-text {
+  color: rgb(124 45 18 / 0.7);
+}
+.hn-pill-icon {
+  color: #fb923c;
+}
+
+@media (prefers-color-scheme: dark) {
+  .hn-pill {
+    border: 1px solid rgb(249 115 22 / 0.3);
+    background: linear-gradient(
+      to right,
+      rgb(67 20 7 / 0.4),
+      rgb(69 26 3 / 0.3)
+    );
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.1);
+  }
+  .hn-pill:hover {
+    border-color: rgb(249 115 22 / 0.5);
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.2);
+  }
+  .hn-pill-bold {
+    color: #fb923c;
+  }
+  .hn-pill-text {
+    color: rgb(254 215 170 / 0.7);
+  }
+  .hn-pill-icon {
+    color: #f97316;
+  }
+}
+
+/* Logo bar – force monochrome, adapt to theme */
+.logo-themed {
+  filter: brightness(0);
+}
+
+@media (prefers-color-scheme: dark) {
+  .logo-themed {
+    filter: brightness(0) invert(1);
+  }
+}
+
+/* Syntax highlighting for custom CodeBlock HTML (landing page, etc.) */
+.syntax-keyword {
+  color: var(--syntax-keyword);
+  font-weight: 600;
+}
+.syntax-fn {
+  color: var(--syntax-fn);
+}
+.syntax-string {
+  color: var(--syntax-string);
+}
+.syntax-number {
+  color: var(--syntax-number);
 }

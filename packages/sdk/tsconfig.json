@@ -1,0 +1,9 @@
+{
+  "extends": "@ocrbase/config/tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "strictNullChecks": true,
+    "types": ["bun"]
+  },
+  "exclude": ["dist", "node_modules"]
+}

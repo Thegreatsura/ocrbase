@@ -1,0 +1,114 @@
+---
+title: parse()
+description: Convert documents to markdown using OCR.
+---
+
+## Usage
+
+```ts
+import { parse } from "ocrbase";
+
+const result = await parse("./document.pdf");
+```
+
+## Input
+
+```ts
+type DocumentInput =
+  | ArrayBuffer
+  | ArrayBufferView
+  | Blob
+  | ReadableStream<Uint8Array>
+  | SharedArrayBuffer
+  | string
+  | URL;
+
+interface ParseDocumentOptions {
+  /** Optional filename when file type can't be inferred */
+  fileName?: string;
+  /** MIME type override */
+  mimeType?: string;
+  /** Specific page numbers to parse (1-indexed) */
+  pages?: number[];
+  /** Custom timeout in milliseconds */
+  timeoutMs?: number;
+}
+
+declare function parse(
+  file: DocumentInput,
+  options?: ParseDocumentOptions
+): Promise<ParseOutput>;
+```
+
+## Output
+
+```ts
+interface ParseOutput {
+  /** Full markdown text of the document */
+  text: string;
+  /** Per-page content */
+  pages: Array<{
+    /** Page number (1-indexed) */
+    number: number;
+    /** Page markdown text */
+    text: string;
+  }>;
+  /** Processing metadata */
+  metadata: {
+    jobId: string;
+    model: string; // "paddleocr-vl-1.5"
+    pageCount: number;
+    processingMs: number;
+  };
+}
+```
+
+## Examples
+
+### Parse a local file
+
+```ts
+const result = await parse("./reports/q4-financials.pdf");
+
+console.log(`Parsed ${result.metadata.pageCount} pages`);
+console.log(result.text);
+```
+
+### Parse from URL
+
+```ts
+const result = await parse("https://example.com/document.pdf");
+```
+
+### Parse specific pages
+
+```ts
+const result = await parse("./large-document.pdf", {
+  pages: [1, 2, 5], // Keep pages 1, 2, and 5 in the output
+});
+```
+
+### Parse an image
+
+```ts
+const result = await parse("./receipt.png");
+```
+
+### Parse with custom timeout
+
+```ts
+const result = await parse("./huge-document.pdf", {
+  timeoutMs: 600_000, // 10 minutes
+});
+```
+
+### Parse a browser File object
+
+```ts
+const fileInput = document.querySelector("input[type=file]");
+const file = fileInput.files[0];
+
+const result = await parse(file, {
+  fileName: file.name,
+});
+```

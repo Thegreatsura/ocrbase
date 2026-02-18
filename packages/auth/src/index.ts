@@ -7,6 +7,75 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { organization } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 
+const stripDiacritics = (value: string): string =>
+  value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+
+const toSlug = (value: string): string =>
+  stripDiacritics(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+
+const cleanNameToken = (value: string): string =>
+  value.replace(/[^a-zA-Z0-9'-]/g, "");
+
+const capitalizeWord = (value: string): string =>
+  value
+    .split("-")
+    .filter(Boolean)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join("-");
+
+const getUserNameParts = (
+  name: string,
+  email: string,
+  userId: string
+): { firstName: string; lastName: string } => {
+  const nameParts = name
+    .trim()
+    .split(/\s+/)
+    .map(cleanNameToken)
+    .filter(Boolean);
+
+  const emailLocalPart = email.split("@")[0] ?? "";
+  const emailParts = emailLocalPart
+    .split(/[._-]+/)
+    .map(cleanNameToken)
+    .filter(Boolean);
+
+  const firstName = capitalizeWord(nameParts[0] ?? emailParts[0] ?? "user");
+  const lastNamePart =
+    nameParts.length > 1
+      ? nameParts[nameParts.length - 1]
+      : emailParts.length > 1
+        ? emailParts[emailParts.length - 1]
+        : userId.slice(-6);
+  const lastName = capitalizeWord(lastNamePart ?? userId.slice(-6));
+
+  return { firstName, lastName };
+};
+
+const getUniqueOrganizationSlug = async (baseSlug: string): Promise<string> => {
+  let index = 1;
+  let slugCandidate = baseSlug;
+
+  while (true) {
+    const [existingOrg] = await db
+      .select({ id: schema.organization.id })
+      .from(schema.organization)
+      .where(eq(schema.organization.slug, slugCandidate))
+      .limit(1);
+
+    if (!existingOrg) {
+      return slugCandidate;
+    }
+
+    index += 1;
+    slugCandidate = `${baseSlug}-${index}`;
+  }
+};
+
 const buildSocialProviders = () => {
   const providers: Record<string, { clientId: string; clientSecret: string }> =
     {};
@@ -63,10 +132,19 @@ export const auth = betterAuth({
         after: async (user) => {
           try {
             const orgId = createId("organization");
+            const { firstName, lastName } = getUserNameParts(
+              user.name,
+              user.email,
+              user.id
+            );
+            const organizationName = `${firstName} ${lastName}'s organization`;
+            const baseSlug = toSlug(`${firstName}-${lastName}`) || "user";
+            const slug = await getUniqueOrganizationSlug(baseSlug);
+
             await db.insert(schema.organization).values({
               id: orgId,
-              name: "Personal",
-              slug: `personal-${user.id}`,
+              name: organizationName,
+              slug,
             });
             await db.insert(schema.member).values({
               id: createId("member"),
@@ -76,7 +154,7 @@ export const auth = betterAuth({
             });
           } catch {
             await db.delete(schema.user).where(eq(schema.user.id, user.id));
-            throw new Error("Failed to create personal organization");
+            throw new Error("Failed to create default organization");
           }
         },
       },

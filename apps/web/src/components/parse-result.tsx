@@ -74,7 +74,7 @@ export const ParseResult = ({
 
   if (isLoading) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 rounded-lg border bg-muted/50">
+      <div className="flex h-full flex-col items-center justify-center gap-3 rounded-md border bg-muted/50">
         <Spinner className="size-8 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">Processing document…</p>
         {errorMessage && (
@@ -88,7 +88,7 @@ export const ParseResult = ({
 
   if (status === "failed") {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border bg-muted/50 px-6 text-center">
+      <div className="flex h-full flex-col items-center justify-center gap-2 rounded-md border bg-muted/50 px-6 text-center">
         <p className="text-sm font-medium text-destructive">
           Processing failed
         </p>
@@ -121,7 +121,7 @@ export const ParseResult = ({
         aria-label={copied ? "Copied" : "Copy to clipboard"}
       >
         {copied ? (
-          <Check className="size-4 text-green-500" />
+          <Check className="size-4 text-success" />
         ) : (
           <Copy className="size-4" />
         )}

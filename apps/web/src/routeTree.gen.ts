@@ -9,14 +9,23 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DocsSplatRouteImport } from './routes/docs/$'
+import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as AuthenticatedLayoutRouteImport } from './routes/_authenticated/_layout'
 import { Route as AuthenticatedLayoutAppRouteImport } from './routes/_authenticated/_layout/app'
+import { Route as AuthenticatedLayoutOrgSlugRouteImport } from './routes/_authenticated/_layout/$orgSlug'
 import { Route as AuthenticatedLayoutParseJobIdRouteImport } from './routes/_authenticated/_layout/parse.$jobId'
 import { Route as AuthenticatedLayoutExtractJobIdRouteImport } from './routes/_authenticated/_layout/extract.$jobId'
 
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -31,6 +40,16 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DocsSplatRoute = DocsSplatRouteImport.update({
+  id: '/docs/$',
+  path: '/docs/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSearchRoute = ApiSearchRouteImport.update({
+  id: '/api/search',
+  path: '/api/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedLayoutRoute = AuthenticatedLayoutRouteImport.update({
   id: '/_layout',
   getParentRoute: () => AuthenticatedRoute,
@@ -40,6 +59,12 @@ const AuthenticatedLayoutAppRoute = AuthenticatedLayoutAppRouteImport.update({
   path: '/app',
   getParentRoute: () => AuthenticatedLayoutRoute,
 } as any)
+const AuthenticatedLayoutOrgSlugRoute =
+  AuthenticatedLayoutOrgSlugRouteImport.update({
+    id: '/$orgSlug',
+    path: '/$orgSlug',
+    getParentRoute: () => AuthenticatedLayoutRoute,
+  } as any)
 const AuthenticatedLayoutParseJobIdRoute =
   AuthenticatedLayoutParseJobIdRouteImport.update({
     id: '/parse/$jobId',
@@ -56,6 +81,10 @@ const AuthenticatedLayoutExtractJobIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/api/search': typeof ApiSearchRoute
+  '/docs/$': typeof DocsSplatRoute
+  '/$orgSlug': typeof AuthenticatedLayoutOrgSlugRoute
   '/app': typeof AuthenticatedLayoutAppRoute
   '/extract/$jobId': typeof AuthenticatedLayoutExtractJobIdRoute
   '/parse/$jobId': typeof AuthenticatedLayoutParseJobIdRoute
@@ -63,6 +92,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/api/search': typeof ApiSearchRoute
+  '/docs/$': typeof DocsSplatRoute
+  '/$orgSlug': typeof AuthenticatedLayoutOrgSlugRoute
   '/app': typeof AuthenticatedLayoutAppRoute
   '/extract/$jobId': typeof AuthenticatedLayoutExtractJobIdRoute
   '/parse/$jobId': typeof AuthenticatedLayoutParseJobIdRoute
@@ -72,22 +105,48 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
   '/_authenticated/_layout': typeof AuthenticatedLayoutRouteWithChildren
+  '/api/search': typeof ApiSearchRoute
+  '/docs/$': typeof DocsSplatRoute
+  '/_authenticated/_layout/$orgSlug': typeof AuthenticatedLayoutOrgSlugRoute
   '/_authenticated/_layout/app': typeof AuthenticatedLayoutAppRoute
   '/_authenticated/_layout/extract/$jobId': typeof AuthenticatedLayoutExtractJobIdRoute
   '/_authenticated/_layout/parse/$jobId': typeof AuthenticatedLayoutParseJobIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/app' | '/extract/$jobId' | '/parse/$jobId'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/signup'
+    | '/api/search'
+    | '/docs/$'
+    | '/$orgSlug'
+    | '/app'
+    | '/extract/$jobId'
+    | '/parse/$jobId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/app' | '/extract/$jobId' | '/parse/$jobId'
+  to:
+    | '/'
+    | '/login'
+    | '/signup'
+    | '/api/search'
+    | '/docs/$'
+    | '/$orgSlug'
+    | '/app'
+    | '/extract/$jobId'
+    | '/parse/$jobId'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/login'
+    | '/signup'
     | '/_authenticated/_layout'
+    | '/api/search'
+    | '/docs/$'
+    | '/_authenticated/_layout/$orgSlug'
     | '/_authenticated/_layout/app'
     | '/_authenticated/_layout/extract/$jobId'
     | '/_authenticated/_layout/parse/$jobId'
@@ -97,10 +156,20 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  SignupRoute: typeof SignupRoute
+  ApiSearchRoute: typeof ApiSearchRoute
+  DocsSplatRoute: typeof DocsSplatRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -122,6 +191,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/docs/$': {
+      id: '/docs/$'
+      path: '/docs/$'
+      fullPath: '/docs/$'
+      preLoaderRoute: typeof DocsSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/search': {
+      id: '/api/search'
+      path: '/api/search'
+      fullPath: '/api/search'
+      preLoaderRoute: typeof ApiSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/_layout': {
       id: '/_authenticated/_layout'
       path: ''
@@ -134,6 +217,13 @@ declare module '@tanstack/react-router' {
       path: '/app'
       fullPath: '/app'
       preLoaderRoute: typeof AuthenticatedLayoutAppRouteImport
+      parentRoute: typeof AuthenticatedLayoutRoute
+    }
+    '/_authenticated/_layout/$orgSlug': {
+      id: '/_authenticated/_layout/$orgSlug'
+      path: '/$orgSlug'
+      fullPath: '/$orgSlug'
+      preLoaderRoute: typeof AuthenticatedLayoutOrgSlugRouteImport
       parentRoute: typeof AuthenticatedLayoutRoute
     }
     '/_authenticated/_layout/parse/$jobId': {
@@ -154,12 +244,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedLayoutRouteChildren {
+  AuthenticatedLayoutOrgSlugRoute: typeof AuthenticatedLayoutOrgSlugRoute
   AuthenticatedLayoutAppRoute: typeof AuthenticatedLayoutAppRoute
   AuthenticatedLayoutExtractJobIdRoute: typeof AuthenticatedLayoutExtractJobIdRoute
   AuthenticatedLayoutParseJobIdRoute: typeof AuthenticatedLayoutParseJobIdRoute
 }
 
 const AuthenticatedLayoutRouteChildren: AuthenticatedLayoutRouteChildren = {
+  AuthenticatedLayoutOrgSlugRoute: AuthenticatedLayoutOrgSlugRoute,
   AuthenticatedLayoutAppRoute: AuthenticatedLayoutAppRoute,
   AuthenticatedLayoutExtractJobIdRoute: AuthenticatedLayoutExtractJobIdRoute,
   AuthenticatedLayoutParseJobIdRoute: AuthenticatedLayoutParseJobIdRoute,
@@ -184,6 +276,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
+  SignupRoute: SignupRoute,
+  ApiSearchRoute: ApiSearchRoute,
+  DocsSplatRoute: DocsSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

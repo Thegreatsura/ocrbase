@@ -1,0 +1,100 @@
+---
+title: Extract
+description: POST /v1/extract — Extract structured data from a document.
+---
+
+## `POST /v1/extract`
+
+Upload a document and extract structured JSON using a schema. The document is first parsed via OCR, then an LLM extracts data matching your schema.
+
+Returns a job object with status `pending`. Processing is asynchronous.
+
+## Request
+
+### With inline schema
+
+```bash
+curl -X POST https://api.ocrbase.dev/v1/extract \
+  -H "Authorization: Bearer sk_your_api_key" \
+  -F file=@invoice.pdf \
+  -F hints="Extract all line items with prices"
+```
+
+### With saved schema
+
+```bash
+curl -X POST https://api.ocrbase.dev/v1/extract \
+  -H "Authorization: Bearer sk_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com/invoice.pdf",
+    "schemaId": "sch_abc123"
+  }'
+```
+
+### Parameters
+
+| Parameter  | Type     | Required               | Description                                    |
+| ---------- | -------- | ---------------------- | ---------------------------------------------- |
+| `file`     | `File`   | One of `file` or `url` | Document file (multipart upload)               |
+| `url`      | `string` | One of `file` or `url` | HTTP(S) URL to fetch document from             |
+| `schemaId` | `string` | No                     | ID of a saved schema                           |
+| `hints`    | `string` | No                     | Additional extraction instructions for the LLM |
+
+**Limits:** Max file size 50MB. Supported formats: PDF, PNG, JPEG, WebP, TIFF, BMP.
+
+## Response
+
+`202 Accepted`
+
+```json
+{
+  "id": "job_xyz789",
+  "type": "extract",
+  "status": "pending",
+  "fileName": "invoice.pdf",
+  "fileSize": 245000,
+  "mimeType": "application/pdf",
+  "schemaId": "sch_abc123",
+  "markdownResult": null,
+  "jsonResult": null,
+  "createdAt": "2024-01-15T10:30:00.000Z"
+}
+```
+
+When completed, `GET /v1/jobs/{id}` returns:
+
+```json
+{
+  "id": "job_xyz789",
+  "type": "extract",
+  "status": "completed",
+  "markdownResult": "# Invoice #1234\n...",
+  "jsonResult": {
+    "vendor": "Acme Corp",
+    "invoiceNumber": "INV-1234",
+    "total": 1420.0,
+    "lineItems": [
+      { "description": "Widget A", "quantity": 10, "unitPrice": 42.0 },
+      { "description": "Widget B", "quantity": 5, "unitPrice": 200.0 }
+    ]
+  },
+  "pageCount": 3,
+  "llmModel": "google/gemini-2.5-flash",
+  "tokenCount": 1250,
+  "processingTimeMs": 4200,
+  "completedAt": "2024-01-15T10:30:04.200Z"
+}
+```
+
+## Job statuses
+
+Extract jobs go through additional statuses compared to parse jobs:
+
+| Status       | Description                |
+| ------------ | -------------------------- |
+| `pending`    | Waiting in queue           |
+| `processing` | OCR in progress            |
+| `extracting` | LLM extraction in progress |
+| `completed`  | Done                       |
+| `failed`     | Failed after retries       |

@@ -5,7 +5,6 @@ import { ApiKeysSheet } from "@/components/api-keys-sheet";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ModelSelector } from "@/components/model-selector";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { jobsInfiniteQueryOptions } from "@/lib/queries";
 
 const LayoutComponent = () => {
   const [apiKeysOpen, setApiKeysOpen] = useState(false);
@@ -32,7 +31,5 @@ const LayoutComponent = () => {
 
 export const Route = createFileRoute("/_authenticated/_layout")({
   component: LayoutComponent,
-  loader: ({ context }) =>
-    context.queryClient.ensureInfiniteQueryData(jobsInfiniteQueryOptions()),
   ssr: false,
 });

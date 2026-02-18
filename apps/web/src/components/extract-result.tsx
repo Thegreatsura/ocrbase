@@ -1,10 +1,10 @@
 import type { JobStatus } from "@ocrbase/db/lib/enums";
 
-import { Copy, Check, Download } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { Download } from "lucide-react";
+import { useCallback, useMemo } from "react";
 
 import { Panel } from "@/components/panel";
-import { Button } from "@/components/ui/button";
+import { CodeBlock } from "@/components/ui/code-block";
 import { Spinner } from "@/components/ui/spinner";
 
 interface ExtractResultProps {
@@ -22,8 +22,6 @@ export const ExtractResult = ({
   status,
   errorMessage,
 }: ExtractResultProps) => {
-  const [copied, setCopied] = useState(false);
-
   const jsonString = useMemo(
     () =>
       json === null || json === undefined
@@ -31,15 +29,6 @@ export const ExtractResult = ({
         : JSON.stringify(json, null, 2),
     [json]
   );
-
-  const handleCopy = useCallback(async () => {
-    if (!jsonString) {
-      return;
-    }
-    await navigator.clipboard.writeText(jsonString);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }, [jsonString]);
 
   const handleDownload = useCallback(() => {
     if (!jsonString) {
@@ -58,7 +47,7 @@ export const ExtractResult = ({
 
   if (isLoading) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 rounded-lg border bg-muted/50">
+      <div className="flex h-full flex-col items-center justify-center gap-3 rounded-md border bg-muted/50">
         <Spinner className="size-8 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">Extracting data…</p>
         {errorMessage && (
@@ -72,7 +61,7 @@ export const ExtractResult = ({
 
   if (status === "failed") {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border bg-muted/50 px-6 text-center">
+      <div className="flex h-full flex-col items-center justify-center gap-2 rounded-md border bg-muted/50 px-6 text-center">
         <p className="text-sm font-medium text-destructive">
           Extraction failed
         </p>
@@ -93,38 +82,36 @@ export const ExtractResult = ({
     );
   }
 
-  const actions = (
-    <>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-7"
-        onClick={handleCopy}
-        aria-label={copied ? "Copied" : "Copy JSON to clipboard"}
-      >
-        {copied ? (
-          <Check className="size-4 text-green-500" />
-        ) : (
-          <Copy className="size-4" />
-        )}
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-7"
-        onClick={handleDownload}
-        aria-label="Download as JSON"
-      >
-        <Download className="size-4" />
-      </Button>
-    </>
+  if (!jsonString) {
+    return (
+      <Panel title="Extracted Data">
+        <div className="text-muted-foreground flex h-full min-h-28 items-center justify-center text-sm">
+          No structured data was extracted from this document.
+        </div>
+      </Panel>
+    );
+  }
+
+  const downloadButton = (
+    <button
+      type="button"
+      onClick={handleDownload}
+      className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      aria-label="Download as JSON"
+    >
+      <Download className="size-3.5" />
+    </button>
   );
 
   return (
-    <Panel title="Extracted Data" actions={actions}>
-      <pre className="text-sm">
-        <code className="text-foreground">{jsonString}</code>
-      </pre>
-    </Panel>
+    <CodeBlock
+      filename={`${jobId || "result"}.json`}
+      language="json"
+      lineNumbers={false}
+      actions={downloadButton}
+      className="h-full min-h-0 overflow-hidden [&>div]:h-full [&>div>div:last-child]:min-h-0 [&>div>div:last-child]:flex-1"
+    >
+      {jsonString}
+    </CodeBlock>
   );
 };

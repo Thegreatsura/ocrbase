@@ -1,0 +1,150 @@
+---
+title: Schemas
+description: Create and manage extraction schemas.
+---
+
+Schemas define the structure of data to extract from documents. Save schemas server-side to reuse them across extractions.
+
+## Create
+
+### `POST /v1/schemas`
+
+```bash
+curl -X POST https://api.ocrbase.dev/v1/schemas \
+  -H "Authorization: Bearer sk_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Invoice",
+    "description": "Standard invoice extraction",
+    "jsonSchema": {
+      "type": "object",
+      "properties": {
+        "vendor": { "type": "string" },
+        "total": { "type": "number" },
+        "lineItems": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "description": { "type": "string" },
+              "quantity": { "type": "integer" },
+              "unitPrice": { "type": "number" }
+            },
+            "required": ["description", "quantity", "unitPrice"]
+          }
+        }
+      },
+      "required": ["vendor", "total"]
+    }
+  }'
+```
+
+| Parameter     | Type     | Required | Description                |
+| ------------- | -------- | -------- | -------------------------- |
+| `name`        | `string` | Yes      | Schema name                |
+| `description` | `string` | No       | Human-readable description |
+| `jsonSchema`  | `object` | Yes      | JSON Schema definition     |
+
+## List
+
+### `GET /v1/schemas`
+
+```bash
+curl https://api.ocrbase.dev/v1/schemas \
+  -H "Authorization: Bearer sk_your_api_key"
+```
+
+Returns an array of schema objects.
+
+## Get
+
+### `GET /v1/schemas/{id}`
+
+```bash
+curl https://api.ocrbase.dev/v1/schemas/sch_abc123 \
+  -H "Authorization: Bearer sk_your_api_key"
+```
+
+## Update
+
+### `PATCH /v1/schemas/{id}`
+
+```bash
+curl -X PATCH https://api.ocrbase.dev/v1/schemas/sch_abc123 \
+  -H "Authorization: Bearer sk_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Invoice v2" }'
+```
+
+| Parameter     | Type     | Required | Description         |
+| ------------- | -------- | -------- | ------------------- |
+| `name`        | `string` | No       | Updated name        |
+| `description` | `string` | No       | Updated description |
+| `jsonSchema`  | `object` | No       | Updated JSON Schema |
+
+## Delete
+
+### `DELETE /v1/schemas/{id}`
+
+```bash
+curl -X DELETE https://api.ocrbase.dev/v1/schemas/sch_abc123 \
+  -H "Authorization: Bearer sk_your_api_key"
+```
+
+Returns `204 No Content`.
+
+## Generate
+
+### `POST /v1/schemas/generate`
+
+Auto-generate a schema from a parsed document using an LLM.
+
+```bash
+curl -X POST https://api.ocrbase.dev/v1/schemas/generate \
+  -H "Authorization: Bearer sk_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jobId": "job_abc123",
+    "hints": "Focus on financial data and line items"
+  }'
+```
+
+| Parameter  | Type     | Required | Description                          |
+| ---------- | -------- | -------- | ------------------------------------ |
+| `jobId`    | `string` | No       | Job ID to generate schema from       |
+| `markdown` | `string` | No       | Raw markdown to generate schema from |
+| `hints`    | `string` | No       | Instructions for the LLM             |
+
+Provide either `jobId` or `markdown`.
+
+### Response
+
+```json
+{
+  "suggestedName": "Invoice",
+  "suggestedDescription": "Extracts vendor, totals, and line items from invoices",
+  "suggestedSchema": {
+    "type": "object",
+    "properties": {
+      "vendor": { "type": "string" },
+      "total": { "type": "number" }
+    }
+  }
+}
+```
+
+## Schema object
+
+```ts
+interface Schema {
+  id: string; // "sch_xxx"
+  name: string;
+  description: string | null;
+  jsonSchema: object;
+  usageCount: number;
+  lastUsedAt: string | null;
+  generatedBy: string | null; // "llm" or null
+  createdAt: string;
+  updatedAt: string;
+}
+```

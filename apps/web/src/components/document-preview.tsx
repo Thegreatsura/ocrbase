@@ -44,7 +44,7 @@ export const DocumentPreview = ({
 
   if (!fileUrl) {
     return (
-      <div className="flex h-full items-center justify-center rounded-lg border bg-muted/50">
+      <div className="flex h-full items-center justify-center rounded-md border bg-muted/50">
         <div className="flex flex-col items-center gap-2 text-muted-foreground">
           <FileText className="size-12" />
           <p>No preview available</p>
