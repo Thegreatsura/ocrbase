@@ -25,8 +25,7 @@ ARG VITE_SERVER_URL
 RUN export VITE_SERVER_URL="${VITE_SERVER_URL:-http://localhost:3000}" && \
     export OCRBASE_DISABLE_PRERENDER=1 && \
     bunx fumadocs-mdx && \
-    bun run build && \
-    bun build dist/server/server.js --target=bun --outfile .runtime-server.js --minify
+    bun run build
 
 # Production stage
 FROM oven/bun:1-slim
@@ -36,9 +35,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3001
 
-COPY --from=builder /app/apps/web/dist/client ./dist/client
-COPY --from=builder /app/apps/web/.runtime-server.js ./server.js
+COPY --from=builder /app/apps/web/.output ./.output
 
 EXPOSE 3001
 
-CMD ["bun", "run", "server.js"]
+CMD ["bun", "run", ".output/server/index.mjs"]
