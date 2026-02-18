@@ -44,6 +44,15 @@ jobs:
             type=raw,value=${{ steps.version.outputs.version }}
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || steps.version.outputs.is_release == 'true' }}
 
+      - name: Validate required build vars
+        env:
+          VITE_SERVER_URL: ${{ vars.VITE_SERVER_URL }}
+        run: |
+          if [[ -z "${VITE_SERVER_URL}" ]]; then
+            echo "Missing required repository variable: VITE_SERVER_URL"
+            exit 1
+          fi
+
       - uses: docker/build-push-action@v6
         with:
           context: .

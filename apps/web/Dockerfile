@@ -22,8 +22,11 @@ COPY . .
 # Build the web app (VITE_SERVER_URL must be set at build time)
 WORKDIR /app/apps/web
 ARG VITE_SERVER_URL
-ENV VITE_SERVER_URL=$VITE_SERVER_URL
-RUN bunx fumadocs-mdx && bun run build
+RUN export VITE_SERVER_URL="${VITE_SERVER_URL:-http://localhost:3000}" && \
+    export OCRBASE_DISABLE_PRERENDER=1 && \
+    bunx fumadocs-mdx && \
+    bun run build && \
+    bun build dist/server/server.js --target=bun --outfile .runtime-server.js --minify
 
 # Production stage
 FROM oven/bun:1-slim
@@ -31,9 +34,11 @@ FROM oven/bun:1-slim
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV PORT=3001
 
-COPY --from=builder /app/apps/web/.output .output
+COPY --from=builder /app/apps/web/dist/client ./dist/client
+COPY --from=builder /app/apps/web/.runtime-server.js ./server.js
 
 EXPOSE 3001
 
-CMD ["bun", "run", ".output/server/index.mjs"]
+CMD ["bun", "run", "server.js"]

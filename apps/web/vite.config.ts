@@ -7,6 +7,14 @@ import viteTsConfigPaths from "vite-tsconfig-paths";
 
 import * as MdxConfig from "./source.config";
 
+const isPrerenderablePath = (path: string): boolean =>
+  path === "/" ||
+  path === "/login" ||
+  path === "/signup" ||
+  path.startsWith("/docs");
+
+const disablePrerender = process.env.OCRBASE_DISABLE_PRERENDER === "1";
+
 export default defineConfig(() => ({
   plugins: [
     mdx(MdxConfig),
@@ -15,10 +23,15 @@ export default defineConfig(() => ({
     }),
     tailwindcss(),
     tanstackStart({
-      prerender: {
-        crawlLinks: true,
-        enabled: true,
-      },
+      prerender: disablePrerender
+        ? {
+            enabled: false,
+          }
+        : {
+            crawlLinks: true,
+            enabled: true,
+            filter: (page) => isPrerenderablePath(page.path),
+          },
     }),
     viteReact(),
   ],
