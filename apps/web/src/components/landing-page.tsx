@@ -370,33 +370,33 @@ function ComparisonTable() {
 
 const QUOTES = [
   {
-    handle: "@lukasz_dev",
-    name: "\u0141ukasz",
+    handle: "@luke_dev",
+    name: "Luke",
     text: "Built an identical pipeline before \u2014 happy to advise on architecture and scaling. ocrbase nails the hard parts.",
   },
   {
-    handle: "@jakub_ai",
-    name: "Jakub",
+    handle: "@jacob_ai",
+    name: "Jacob",
     text: "Currently processing ~1k documents/day, targeting 2M pages/year. The queue-based architecture handles it without breaking a sweat.",
   },
   {
-    handle: "@mikolaj_m",
-    name: "Miko\u0142aj",
+    handle: "@nicholas_m",
+    name: "Nicholas",
     text: "We want to cut our Textract costs.",
   },
   {
-    handle: "@tomek_dev",
-    name: "Tomek",
+    handle: "@thomas_dev",
+    name: "Thomas",
     text: "3 lines of code to replace our entire document processing pipeline. The schema-driven approach is exactly what we needed.",
   },
   {
-    handle: "@marta_ml",
-    name: "Marta",
+    handle: "@martha_ml",
+    name: "Martha",
     text: "94.5 on OmniDocBench speaks for itself. We tested every provider \u2014 ocrbase wins on accuracy and cost.",
   },
   {
-    handle: "@piotr_ops",
-    name: "Piotr",
+    handle: "@peter_ops",
+    name: "Peter",
     text: "Self-hosting was a breeze. Spun it up on our GPU cluster in under an hour.",
   },
 ] as const;
