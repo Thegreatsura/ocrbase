@@ -3,6 +3,7 @@ import type { Job } from "@ocrbase/db/schema/jobs";
 import type { WideEventContext } from "../../lib/wide-event";
 import type { JobResponse } from "./model";
 
+import { BadRequestError } from "../../lib/errors";
 import { JobService } from "./service";
 
 interface ContextWithWideEvent {
@@ -11,6 +12,9 @@ interface ContextWithWideEvent {
 
 export const getWideEvent = (ctx: unknown): WideEventContext | undefined =>
   (ctx as ContextWithWideEvent).wideEvent;
+
+export const getErrorMessage = (error: unknown, fallback: string): string =>
+  error instanceof Error ? error.message : fallback;
 
 export const formatJobResponse = (job: Job): JobResponse => ({
   completedAt: job.completedAt?.toISOString() ?? null,
@@ -40,9 +44,6 @@ export const formatJobResponse = (job: Job): JobResponse => ({
   updatedAt: job.updatedAt.toISOString(),
   userId: job.userId,
 });
-
-export const getErrorMessage = (caught: unknown, fallback: string): string =>
-  caught instanceof Error ? caught.message : fallback;
 
 const setWideEventJob = (
   wideEvent: WideEventContext | undefined,
@@ -78,60 +79,28 @@ export const createJobHandler = async <
   ctx: T,
   wideEvent: WideEventContext | undefined,
   options: CreateJobHandlerOptions
-): Promise<JobResponse | { message: string }> => {
-  const { apiKey, body, organization, requestId, set, user } = ctx;
+): Promise<JobResponse> => {
+  const { apiKey, body, organization, requestId, user } = ctx;
 
   if (!user || !organization) {
-    set.status = 401;
-    return { message: "Unauthorized" };
+    throw new Error("Unauthorized");
   }
 
   const organizationId = organization.id;
 
-  try {
-    const hasValidUrl =
-      typeof body.url === "string" &&
-      body.url.length > 0 &&
-      body.url.startsWith("http");
+  const hasValidUrl =
+    typeof body.url === "string" &&
+    body.url.length > 0 &&
+    body.url.startsWith("http");
 
-    if (hasValidUrl && body.url) {
-      const job = await JobService.createFromUrl({
-        apiKeyId: apiKey?.id,
-        body: {
-          hints: body.hints,
-          schemaId: body.schemaId,
-          type: options.type,
-          url: body.url,
-        },
-        organizationId,
-        requestId,
-        userId: user.id,
-      });
-
-      setWideEventJob(wideEvent, job);
-      return formatJobResponse(job);
-    }
-
-    if (!body.file) {
-      set.status = 400;
-      return { message: "File or URL is required" };
-    }
-
-    const { file } = body;
-    const buffer = Buffer.from(await file.arrayBuffer());
-
-    const job = await JobService.create({
+  if (hasValidUrl && body.url) {
+    const job = await JobService.createFromUrl({
       apiKeyId: apiKey?.id,
       body: {
         hints: body.hints,
         schemaId: body.schemaId,
         type: options.type,
-      },
-      file: {
-        buffer,
-        name: file.name,
-        size: file.size,
-        type: file.type,
+        url: body.url,
       },
       organizationId,
       requestId,
@@ -140,10 +109,33 @@ export const createJobHandler = async <
 
     setWideEventJob(wideEvent, job);
     return formatJobResponse(job);
-  } catch (error) {
-    set.status = 500;
-    return {
-      message: getErrorMessage(error, `Failed to create ${options.type} job`),
-    };
   }
+
+  if (!body.file) {
+    throw new BadRequestError("File or URL is required");
+  }
+
+  const { file } = body;
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  const job = await JobService.create({
+    apiKeyId: apiKey?.id,
+    body: {
+      hints: body.hints,
+      schemaId: body.schemaId,
+      type: options.type,
+    },
+    file: {
+      buffer,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+    },
+    organizationId,
+    requestId,
+    userId: user.id,
+  });
+
+  setWideEventJob(wideEvent, job);
+  return formatJobResponse(job);
 };

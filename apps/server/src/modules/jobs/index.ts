@@ -5,9 +5,6 @@ import { requireAuth } from "../../plugins/auth";
 import { JobService } from "./service";
 import { formatJobResponse, getWideEvent } from "./shared";
 
-const getErrorMessage = (caught: unknown, fallback: string): string =>
-  caught instanceof Error ? caught.message : fallback;
-
 const sanitizeFileName = (name: string) => name.replaceAll(/["\r\n\\;]/g, "_");
 
 const SAFE_INLINE_TYPES = new Set([
@@ -166,35 +163,24 @@ For completed jobs, includes markdownResult and jsonResult (if extraction schema
   .delete(
     "/:id",
     async (ctx) => {
-      const { organization, params, set, user } = ctx;
+      const { organization, params, user } = ctx;
       const wideEvent = getWideEvent(ctx);
 
       if (!user || !organization) {
-        set.status = 401;
-        return { message: "Unauthorized" };
+        throw new Error("Unauthorized");
       }
 
-      try {
-        const job = await JobService.getById(
-          organization.id,
-          user.id,
-          params.id
-        );
+      const job = await JobService.getById(organization.id, user.id, params.id);
 
-        if (!job) {
-          set.status = 404;
-          return { message: "Job not found" };
-        }
-
-        wideEvent?.setJob({ id: job.id, type: job.type });
-
-        await JobService.delete(organization.id, user.id, params.id);
-
-        return { success: true };
-      } catch (error) {
-        set.status = 500;
-        return { message: getErrorMessage(error, "Failed to delete job") };
+      if (!job) {
+        throw new NotFoundError("Job not found");
       }
+
+      wideEvent?.setJob({ id: job.id, type: job.type });
+
+      await JobService.delete(organization.id, user.id, params.id);
+
+      return { success: true };
     },
     {
       detail: {
@@ -217,37 +203,30 @@ This action cannot be undone. Deletes the job record, uploaded file, and any gen
       const { organization, params, set, user } = ctx;
 
       if (!user || !organization) {
-        set.status = 401;
-        return { message: "Unauthorized" };
+        throw new Error("Unauthorized");
       }
 
-      try {
-        const file = await JobService.getFileBuffer(
-          organization.id,
-          user.id,
-          params.id
-        );
+      const file = await JobService.getFileBuffer(
+        organization.id,
+        user.id,
+        params.id
+      );
 
-        if (!file) {
-          set.status = 404;
-          return { message: "File not found" };
-        }
-
-        const safeType = SAFE_INLINE_TYPES.has(file.mimeType)
-          ? file.mimeType
-          : "application/octet-stream";
-        set.headers["Content-Type"] = safeType;
-        set.headers["Content-Disposition"] =
-          `inline; filename="${sanitizeFileName(file.fileName)}"`;
-        set.headers["Content-Security-Policy"] = "sandbox";
-        set.headers["X-Content-Type-Options"] = "nosniff";
-        set.headers["Cache-Control"] = "private, max-age=3600";
-
-        return file.buffer;
-      } catch (error) {
-        set.status = 500;
-        return { message: getErrorMessage(error, "Failed to get file") };
+      if (!file) {
+        throw new NotFoundError("File not found");
       }
+
+      const safeType = SAFE_INLINE_TYPES.has(file.mimeType)
+        ? file.mimeType
+        : "application/octet-stream";
+      set.headers["Content-Type"] = safeType;
+      set.headers["Content-Disposition"] =
+        `inline; filename="${sanitizeFileName(file.fileName)}"`;
+      set.headers["Content-Security-Policy"] = "sandbox";
+      set.headers["X-Content-Type-Options"] = "nosniff";
+      set.headers["Cache-Control"] = "private, max-age=3600";
+
+      return file.buffer;
     },
     {
       detail: {
@@ -271,33 +250,25 @@ Streams the file with appropriate Content-Type header for inline viewing.`,
       const wideEvent = getWideEvent(ctx);
 
       if (!user || !organization) {
-        set.status = 401;
-        return { message: "Unauthorized" };
+        throw new Error("Unauthorized");
       }
 
-      try {
-        const format = query.format ?? "md";
-        const { content, contentType, fileName } =
-          await JobService.getDownloadContent(
-            organization.id,
-            user.id,
-            params.id,
-            format
-          );
+      const format = query.format ?? "md";
+      const { content, contentType, fileName } =
+        await JobService.getDownloadContent(
+          organization.id,
+          user.id,
+          params.id,
+          format
+        );
 
-        wideEvent?.setJob({ id: params.id });
+      wideEvent?.setJob({ id: params.id });
 
-        set.headers["Content-Type"] = contentType;
-        set.headers["Content-Disposition"] =
-          `attachment; filename="${sanitizeFileName(fileName)}"`;
+      set.headers["Content-Type"] = contentType;
+      set.headers["Content-Disposition"] =
+        `attachment; filename="${sanitizeFileName(fileName)}"`;
 
-        return content;
-      } catch (error) {
-        set.status = 500;
-        return {
-          message: getErrorMessage(error, "Failed to download job result"),
-        };
-      }
+      return content;
     },
     {
       detail: {
