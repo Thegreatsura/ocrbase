@@ -9,7 +9,7 @@ export interface ParseResult {
 const ocrClient = new PaddleocrVlClient({
   apiKey: env.PADDLEOCR_VL_API_KEY,
   baseURL: env.PADDLE_OCR_URL,
-  maxRetries: 0,
+  maxRetries: env.PADDLE_OCR_MAX_RETRIES,
   timeout: env.PADDLE_OCR_TIMEOUT_MS,
 });
 

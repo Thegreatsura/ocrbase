@@ -26,12 +26,17 @@ export const env = createEnv({
     // For self-hosted PaddleOCR-VL instances that don't enforce auth, any
     // non-empty string is fine.
     PADDLEOCR_VL_API_KEY: z.string().default("local"),
+    // Additional upstream OCR client retries for transient network failures.
+    PADDLE_OCR_MAX_RETRIES: z.coerce.number().int().min(0).default(1),
     // OCR calls can take minutes for large PDFs (e.g. 100+ pages).
     // Tune this per deployment/workload.
     PADDLE_OCR_TIMEOUT_MS: z.coerce.number().int().positive().default(120_000),
     PADDLE_OCR_URL: z.url().default("http://localhost:8080"),
     PORT: z.coerce.number().default(3000),
     POSTHOG_API_KEY: z.string().optional(),
+    // BullMQ attempts and backoff delay for OCR/extraction jobs.
+    QUEUE_BACKOFF_DELAY_MS: z.coerce.number().int().positive().default(5000),
+    QUEUE_JOB_ATTEMPTS: z.coerce.number().int().positive().default(3),
     REDIS_URL: z.url().optional(),
     REGION: z.string().optional(),
     S3_ACCESS_KEY: z.string().optional(),

@@ -1,5 +1,5 @@
 import { env } from "@ocrbase/env/server";
-import { type Job as BullJob, Worker } from "bullmq";
+import { type Job as BullJob, UnrecoverableError, Worker } from "bullmq";
 
 import {
   completeJob,
@@ -9,7 +9,7 @@ import {
   updateJobStatus,
 } from "@/lib/job-status";
 import { type WorkerJobContext, workerLogger } from "@/lib/worker-logger";
-import { llmService } from "@/services/llm";
+import { LlmJsonParseError, llmService } from "@/services/llm";
 import { parseDocument } from "@/services/ocr";
 import { type JobData, getWorkerConnection } from "@/services/queue";
 import { StorageService } from "@/services/storage";
@@ -20,6 +20,12 @@ interface ExtractionMetrics {
   processingTimeMs: number;
   tokenCount: number;
 }
+
+const UNRECOVERABLE_CODE_PREFIX = "[cause=";
+const RETRYABLE_MESSAGE_PATTERN =
+  /(timed out|timeout|connection error|econnreset|econnrefused|enotfound|eai_again|429|502|503|504)/i;
+const NON_RETRYABLE_MESSAGE_PATTERN =
+  /(openrouter_api_key is not configured|job not found|no file or url provided|generated schema response is missing required fields|extraction response must be a json object)/i;
 
 const toErrorContext = (
   error: unknown
@@ -57,6 +63,74 @@ const toErrorContext = (
   return {
     code: "UNKNOWN_ERROR",
     message: String(error),
+  };
+};
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  if (typeof error === "object" && error !== null) {
+    const { message } = error as { message?: unknown };
+    if (typeof message === "string") {
+      return message;
+    }
+  }
+  return String(error);
+};
+
+const isRetryableError = (error: unknown): boolean => {
+  if (error instanceof UnrecoverableError) {
+    return false;
+  }
+  if (error instanceof LlmJsonParseError) {
+    return false;
+  }
+
+  const message = getErrorMessage(error);
+
+  if (NON_RETRYABLE_MESSAGE_PATTERN.test(message)) {
+    return false;
+  }
+
+  if (RETRYABLE_MESSAGE_PATTERN.test(message)) {
+    return true;
+  }
+
+  // Default to retry so unknown transient failures still get a second chance.
+  return true;
+};
+
+const encodeUnrecoverableMessage = (
+  errorCode: string,
+  errorMessage: string
+): string => `${UNRECOVERABLE_CODE_PREFIX}${errorCode}] ${errorMessage}`;
+
+const decodeUnrecoverableMessage = (
+  message: string
+): { code: string; message: string } | null => {
+  if (!message.startsWith(UNRECOVERABLE_CODE_PREFIX)) {
+    return null;
+  }
+
+  const closingBracket = message.indexOf("]");
+  if (closingBracket <= UNRECOVERABLE_CODE_PREFIX.length) {
+    return null;
+  }
+
+  const code = message.slice(UNRECOVERABLE_CODE_PREFIX.length, closingBracket);
+  const reason = message.slice(closingBracket + 1).trim();
+
+  if (!code) {
+    return null;
+  }
+
+  return {
+    code,
+    message: reason || "Unrecoverable error",
   };
 };
 
@@ -233,9 +307,24 @@ const processJob = async (bullJob: BullJob<JobData>): Promise<void> => {
     eventContext.status = "completed";
     eventContext.outcome = "success";
   } catch (error) {
+    const retryable = isRetryableError(error);
+
     eventContext.status = "failed";
     eventContext.outcome = "error";
     eventContext.error = toErrorContext(error);
+    if (eventContext.retry) {
+      eventContext.retry.willRetryOnFailure =
+        attempt < maxAttempts && retryable;
+    }
+
+    if (!retryable) {
+      const errorCode = eventContext.error?.code ?? "UNRECOVERABLE_ERROR";
+      const errorMessage =
+        eventContext.error?.message ?? getErrorMessage(error);
+      throw new UnrecoverableError(
+        encodeUnrecoverableMessage(errorCode, errorMessage)
+      );
+    }
 
     throw error;
   } finally {
@@ -259,11 +348,20 @@ worker.on("failed", async (job, error) => {
   const jobId = job?.data.jobId;
 
   if (jobId) {
-    const errorCode = error.name || "PROCESSING_ERROR";
-    const errorMessage = error.message || "Unknown error occurred";
+    let errorCode = error.name || "PROCESSING_ERROR";
+    let errorMessage = error.message || "Unknown error occurred";
     const attempts = job?.attemptsMade ?? 0;
     const maxAttempts = job?.opts.attempts ?? 3;
-    const shouldRetry = attempts < maxAttempts;
+    const shouldRetry =
+      error.name !== "UnrecoverableError" && attempts < maxAttempts;
+
+    if (error.name === "UnrecoverableError") {
+      const decoded = decodeUnrecoverableMessage(errorMessage);
+      if (decoded) {
+        errorCode = decoded.code;
+        errorMessage = decoded.message;
+      }
+    }
 
     await failJob(jobId, errorCode, errorMessage, shouldRetry);
   }

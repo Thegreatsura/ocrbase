@@ -5,8 +5,8 @@ import { Queue, type ConnectionOptions } from "bullmq";
 const DEFAULT_JOB_RETENTION_COMPLETE = 86_400;
 const DEFAULT_JOB_RETENTION_FAIL = 604_800;
 const MAX_COMPLETED_JOBS = 1000;
-const DEFAULT_BACKOFF_DELAY = 1000;
-const DEFAULT_JOB_ATTEMPTS = 3;
+const DEFAULT_BACKOFF_DELAY = env.QUEUE_BACKOFF_DELAY_MS;
+const DEFAULT_JOB_ATTEMPTS = env.QUEUE_JOB_ATTEMPTS;
 
 export interface JobData {
   jobId: string;

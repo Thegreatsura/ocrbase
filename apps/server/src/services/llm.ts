@@ -8,6 +8,8 @@ const openrouter = createOpenAI({
 });
 
 const DEFAULT_MODEL = "google/gemini-2.5-flash";
+const JSON_REPAIR_INPUT_LIMIT = 40_000;
+const RESPONSE_PREVIEW_LIMIT = 240;
 
 interface ProcessExtractionOptions {
   markdown: string;
@@ -37,6 +39,290 @@ interface GeneratedSchema {
   jsonSchema: Record<string, unknown>;
 }
 
+type JsonValidator<T> = (value: unknown) => value is T;
+
+export class LlmJsonParseError extends Error {
+  readonly preview: string;
+
+  constructor(message: string, rawResponse: string) {
+    const preview = rawResponse
+      .replaceAll(/\s+/g, " ")
+      .trim()
+      .slice(0, RESPONSE_PREVIEW_LIMIT);
+    super(`${message}${preview ? ` (preview: ${preview})` : ""}`);
+    this.name = "LlmJsonParseError";
+    this.preview = preview;
+  }
+}
+
+const emptyUsage = (): LlmUsage => ({
+  completionTokens: 0,
+  promptTokens: 0,
+});
+
+const toUsage = (result: {
+  usage?: { inputTokens?: number; outputTokens?: number };
+}): LlmUsage => ({
+  completionTokens: result.usage?.outputTokens ?? 0,
+  promptTokens: result.usage?.inputTokens ?? 0,
+});
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isGeneratedSchema = (value: unknown): value is GeneratedSchema =>
+  isRecord(value) &&
+  typeof value.name === "string" &&
+  typeof value.description === "string" &&
+  isRecord(value.jsonSchema);
+
+const getRequiredTopLevelKeys = (
+  schema?: Record<string, unknown>
+): string[] => {
+  if (!schema) {
+    return [];
+  }
+  const { required } = schema;
+  if (!Array.isArray(required)) {
+    return [];
+  }
+  return required.filter((entry): entry is string => typeof entry === "string");
+};
+
+const buildExtractionValidator = (
+  schema?: Record<string, unknown>
+): JsonValidator<Record<string, unknown>> => {
+  const requiredKeys = getRequiredTopLevelKeys(schema);
+
+  return (value: unknown): value is Record<string, unknown> => {
+    if (!isRecord(value)) {
+      return false;
+    }
+
+    if (requiredKeys.length === 0) {
+      return true;
+    }
+
+    return requiredKeys.every((key) => key in value);
+  };
+};
+
+const findBalancedJsonSegments = (input: string): string[] => {
+  const segments: string[] = [];
+  const stack: string[] = [];
+  let startIndex = -1;
+  let inString = false;
+  let escaping = false;
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+
+    if (inString) {
+      if (escaping) {
+        escaping = false;
+        continue;
+      }
+
+      if (char === "\\") {
+        escaping = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === "{" || char === "[") {
+      if (stack.length === 0) {
+        startIndex = index;
+      }
+      stack.push(char);
+      continue;
+    }
+
+    if (char === "}" || char === "]") {
+      const lastOpen = stack.at(-1);
+      if (!lastOpen) {
+        continue;
+      }
+
+      const isValidClose =
+        (char === "}" && lastOpen === "{") ||
+        (char === "]" && lastOpen === "[");
+      if (!isValidClose) {
+        stack.length = 0;
+        startIndex = -1;
+        continue;
+      }
+
+      stack.pop();
+      if (stack.length === 0 && startIndex !== -1) {
+        segments.push(input.slice(startIndex, index + 1));
+        startIndex = -1;
+      }
+    }
+  }
+
+  return segments;
+};
+
+const collectJsonCandidates = (text: string): string[] => {
+  const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/gi;
+  const candidates: string[] = [];
+  const seen = new Set<string>();
+
+  const pushCandidate = (candidate: string) => {
+    const trimmed = candidate.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      return;
+    }
+    seen.add(trimmed);
+    candidates.push(trimmed);
+  };
+
+  for (const match of text.matchAll(codeBlockRegex)) {
+    if (match[1]) {
+      pushCandidate(match[1]);
+    }
+  }
+
+  const trimmed = text.trim();
+  if (trimmed) {
+    pushCandidate(trimmed);
+    for (const segment of findBalancedJsonSegments(trimmed)) {
+      pushCandidate(segment);
+    }
+  }
+
+  return candidates;
+};
+
+const parseJsonFromText = <T>(text: string, validate?: JsonValidator<T>): T => {
+  const validMatches: T[] = [];
+  let parsedButInvalidShape = 0;
+
+  for (const candidate of collectJsonCandidates(text)) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      if (!validate) {
+        validMatches.push(parsed as T);
+        continue;
+      }
+
+      if (validate(parsed)) {
+        validMatches.push(parsed);
+      } else {
+        parsedButInvalidShape += 1;
+      }
+    } catch {
+      // Continue scanning other candidates.
+    }
+  }
+
+  if (validMatches.length === 1) {
+    const [onlyMatch] = validMatches;
+    if (onlyMatch !== undefined) {
+      return onlyMatch;
+    }
+  }
+
+  if (validMatches.length > 1) {
+    throw new LlmJsonParseError(
+      "Ambiguous JSON response: multiple parseable JSON candidates found",
+      text
+    );
+  }
+
+  if (parsedButInvalidShape > 0) {
+    throw new LlmJsonParseError(
+      "Parsed JSON does not match expected shape",
+      text
+    );
+  }
+
+  throw new LlmJsonParseError(
+    "JSON Parse error: Unable to parse JSON string",
+    text
+  );
+};
+
+const buildJsonRepairPrompt = (
+  invalidResponse: string,
+  expectedShape: string,
+  schema?: Record<string, unknown>
+): string => {
+  const sections = [
+    `The following response should be ${expectedShape}, but the JSON is invalid.`,
+    "Rewrite it into valid JSON.",
+    "Rules:",
+    "- Return ONLY valid JSON.",
+    "- Do not include markdown or explanation.",
+    "- Preserve fields and values from the original response whenever possible.",
+    "",
+    "Invalid response:",
+    "```",
+    invalidResponse.slice(0, JSON_REPAIR_INPUT_LIMIT),
+    "```",
+  ];
+
+  if (schema) {
+    sections.push(
+      "",
+      "Target JSON schema (best effort):",
+      "```json",
+      JSON.stringify(schema, null, 2).slice(0, JSON_REPAIR_INPUT_LIMIT),
+      "```"
+    );
+  }
+
+  return sections.join("\n");
+};
+
+const parseJsonWithRepair = async <T>({
+  expectedShape,
+  responseText,
+  schema,
+  validate,
+}: {
+  expectedShape: string;
+  responseText: string;
+  schema?: Record<string, unknown>;
+  validate?: JsonValidator<T>;
+}): Promise<{ data: T; repairUsage: LlmUsage }> => {
+  try {
+    return {
+      data: parseJsonFromText<T>(responseText, validate),
+      repairUsage: emptyUsage(),
+    };
+  } catch {
+    const repairResult = await generateText({
+      model: openrouter(DEFAULT_MODEL),
+      prompt: buildJsonRepairPrompt(responseText, expectedShape, schema),
+      system:
+        "You are a JSON repair tool. Output valid JSON only, with no markdown fences.",
+    });
+
+    try {
+      return {
+        data: parseJsonFromText<T>(repairResult.text, validate),
+        repairUsage: toUsage(repairResult),
+      };
+    } catch {
+      throw new LlmJsonParseError(
+        "JSON Parse error: Unable to parse JSON string",
+        repairResult.text
+      );
+    }
+  }
+};
+
 export const checkLlmHealth = async (): Promise<boolean> => {
   if (!env.OPENROUTER_API_KEY) {
     return true;
@@ -52,26 +338,6 @@ export const checkLlmHealth = async (): Promise<boolean> => {
   } catch {
     return false;
   }
-};
-
-const extractJsonFromResponse = <T>(text: string): T => {
-  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-  const jsonStr = codeBlockMatch ? codeBlockMatch[1] : text;
-
-  if (!jsonStr) {
-    throw new Error("No JSON content found in response");
-  }
-
-  const trimmed = jsonStr.trim();
-  const jsonStart = trimmed.indexOf("{");
-  const jsonEnd = trimmed.lastIndexOf("}");
-
-  if (jsonStart === -1 || jsonEnd === -1) {
-    throw new Error("No valid JSON object found in response");
-  }
-
-  const parsed = JSON.parse(trimmed.slice(jsonStart, jsonEnd + 1)) as T;
-  return parsed;
 };
 
 export const llmService = {
@@ -104,7 +370,14 @@ Do not include any markdown formatting or explanation. Just the JSON object.`;
       system: systemPrompt,
     });
 
-    return extractJsonFromResponse<GeneratedSchema>(result.text);
+    const parsedResult = await parseJsonWithRepair<GeneratedSchema>({
+      expectedShape:
+        'a JSON object with keys "name" (string), "description" (string), and "jsonSchema" (object)',
+      responseText: result.text,
+      validate: isGeneratedSchema,
+    });
+
+    return parsedResult.data;
   },
 
   async processExtraction({
@@ -133,12 +406,26 @@ Do not include any markdown formatting or explanation. Just the JSON object.`;
       system: systemPrompt,
     });
 
+    const validateExtraction = buildExtractionValidator(schema);
+    const parsedResult = await parseJsonWithRepair<Record<string, unknown>>({
+      expectedShape:
+        "a JSON object with extracted fields from the provided markdown",
+      responseText: result.text,
+      schema,
+      validate: validateExtraction,
+    });
+
+    const primaryUsage = toUsage(result);
+
     return {
-      data: extractJsonFromResponse<Record<string, unknown>>(result.text),
+      data: parsedResult.data,
       model: DEFAULT_MODEL,
       usage: {
-        completionTokens: result.usage.outputTokens ?? 0,
-        promptTokens: result.usage.inputTokens ?? 0,
+        completionTokens:
+          primaryUsage.completionTokens +
+          parsedResult.repairUsage.completionTokens,
+        promptTokens:
+          primaryUsage.promptTokens + parsedResult.repairUsage.promptTokens,
       },
     };
   },

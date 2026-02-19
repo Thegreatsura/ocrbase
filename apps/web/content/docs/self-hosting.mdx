@@ -59,6 +59,7 @@ S3_SECRET_KEY=minioadmin
 PADDLE_OCR_URL=http://localhost:8080
 PADDLEOCR_VL_API_KEY=local
 PADDLE_OCR_TIMEOUT_MS=900000
+PADDLE_OCR_MAX_RETRIES=1
 ```
 
 ### LLM (required for extraction)
@@ -80,6 +81,9 @@ GITHUB_CLIENT_SECRET=your_client_secret
 # Concurrent jobs per worker (default: 5)
 # Lower for large PDFs to avoid overloading the OCR service
 WORKER_CONCURRENCY=5
+# Queue retries and backoff between attempts
+QUEUE_JOB_ATTEMPTS=3
+QUEUE_BACKOFF_DELAY_MS=5000
 ```
 
 ## Setup
