@@ -1,5 +1,6 @@
 import { Elysia, t } from "elysia";
 
+import { NotFoundError } from "../../lib/errors";
 import { IdPatterns } from "../../lib/openapi";
 import { requireAuth } from "../../plugins/auth";
 import { KeyModel } from "./model";
@@ -25,39 +26,29 @@ const formatKeyResponse = (key: {
   updatedAt: key.updatedAt.toISOString(),
 });
 
-const getErrorMessage = (caught: unknown, fallback: string): string =>
-  caught instanceof Error ? caught.message : fallback;
-
 export const keysRoutes = new Elysia({ prefix: "/v1/keys" })
   .use(requireAuth)
   .post(
     "/",
-    async ({ body, organization, set, user }) => {
-      // requireAuth guarantees user exists, but TS needs narrowing
+    async ({ body, organization, user }) => {
       if (!user) {
-        set.status = 401;
-        return { message: "Unauthorized" };
+        throw new Error("Unauthorized");
       }
 
-      try {
-        const result = await KeyService.create({
-          name: body.name,
-          organizationId: organization?.id ?? user.id,
-          userId: user.id,
-        });
+      const result = await KeyService.create({
+        name: body.name,
+        organizationId: organization?.id ?? user.id,
+        userId: user.id,
+      });
 
-        return {
-          createdAt: result.createdAt.toISOString(),
-          id: result.id,
-          isActive: result.isActive,
-          key: result.key,
-          keyPrefix: result.keyPrefix,
-          name: result.name,
-        };
-      } catch (error) {
-        set.status = 500;
-        return { message: getErrorMessage(error, "Failed to create API key") };
-      }
+      return {
+        createdAt: result.createdAt.toISOString(),
+        id: result.id,
+        isActive: result.isActive,
+        key: result.key,
+        keyPrefix: result.keyPrefix,
+        name: result.name,
+      };
     },
     {
       body: KeyModel.createBody,
@@ -80,18 +71,13 @@ Keys can be revoked or deleted at any time.`,
   )
   .get(
     "/",
-    async ({ organization, set, user }) => {
+    async ({ organization, user }) => {
       if (!user) {
-        set.status = 401;
-        return { message: "Unauthorized" };
+        throw new Error("Unauthorized");
       }
-      try {
-        const keys = await KeyService.list(organization?.id ?? user.id);
-        return keys.map(formatKeyResponse);
-      } catch (error) {
-        set.status = 500;
-        return { message: getErrorMessage(error, "Failed to list API keys") };
-      }
+
+      const keys = await KeyService.list(organization?.id ?? user.id);
+      return keys.map(formatKeyResponse);
     },
     {
       detail: {
@@ -110,45 +96,36 @@ Returns key metadata including prefix, status, and usage statistics. Full keys a
   )
   .get(
     "/:id",
-    async ({ params, organization, set, user }) => {
+    async ({ params, organization, user }) => {
       if (!user || !organization) {
-        set.status = 401;
-        return { message: "Unauthorized" };
+        throw new Error("Unauthorized");
       }
 
-      try {
-        const usage = await KeyService.getUsage(params.id, organization.id);
+      const usage = await KeyService.getUsage(params.id, organization.id);
 
-        if (!usage) {
-          set.status = 404;
-          return { message: "API key not found" };
-        }
-
-        return {
-          key: {
-            createdAt: usage.key.createdAt.toISOString(),
-            id: usage.key.id,
-            isActive: usage.key.isActive,
-            keyPrefix: usage.key.keyPrefix,
-            lastUsedAt: usage.key.lastUsedAt?.toISOString() ?? null,
-            name: usage.key.name,
-            requestCount: usage.key.requestCount,
-          },
-          recentUsage: usage.recentUsage.map((u) => ({
-            createdAt: u.createdAt.toISOString(),
-            endpoint: u.endpoint,
-            method: u.method,
-            processingMs: u.processingMs,
-            statusCode: u.statusCode,
-          })),
-          stats: usage.stats,
-        };
-      } catch (error) {
-        set.status = 500;
-        return {
-          message: getErrorMessage(error, "Failed to get API key usage"),
-        };
+      if (!usage) {
+        throw new NotFoundError("API key not found");
       }
+
+      return {
+        key: {
+          createdAt: usage.key.createdAt.toISOString(),
+          id: usage.key.id,
+          isActive: usage.key.isActive,
+          keyPrefix: usage.key.keyPrefix,
+          lastUsedAt: usage.key.lastUsedAt?.toISOString() ?? null,
+          name: usage.key.name,
+          requestCount: usage.key.requestCount,
+        },
+        recentUsage: usage.recentUsage.map((u) => ({
+          createdAt: u.createdAt.toISOString(),
+          endpoint: u.endpoint,
+          method: u.method,
+          processingMs: u.processingMs,
+          statusCode: u.statusCode,
+        })),
+        stats: usage.stats,
+      };
     },
     {
       detail: {
@@ -175,25 +152,18 @@ Includes recent request history, total request count, and aggregated stats.`,
   )
   .post(
     "/:id/revoke",
-    async ({ params, organization, set, user }) => {
+    async ({ params, organization, user }) => {
       if (!user || !organization) {
-        set.status = 401;
-        return { message: "Unauthorized" };
+        throw new Error("Unauthorized");
       }
 
-      try {
-        const revoked = await KeyService.revoke(params.id, organization.id);
+      const revoked = await KeyService.revoke(params.id, organization.id);
 
-        if (!revoked) {
-          set.status = 404;
-          return { message: "API key not found" };
-        }
-
-        return { success: true };
-      } catch (error) {
-        set.status = 500;
-        return { message: getErrorMessage(error, "Failed to revoke API key") };
+      if (!revoked) {
+        throw new NotFoundError("API key not found");
       }
+
+      return { success: true };
     },
     {
       detail: {
@@ -220,25 +190,18 @@ The key will immediately stop working but usage history is preserved. This actio
   )
   .delete(
     "/:id",
-    async ({ params, organization, set, user }) => {
+    async ({ params, organization, user }) => {
       if (!user || !organization) {
-        set.status = 401;
-        return { message: "Unauthorized" };
+        throw new Error("Unauthorized");
       }
 
-      try {
-        const deleted = await KeyService.delete(params.id, organization.id);
+      const deleted = await KeyService.delete(params.id, organization.id);
 
-        if (!deleted) {
-          set.status = 404;
-          return { message: "API key not found" };
-        }
-
-        return { success: true };
-      } catch (error) {
-        set.status = 500;
-        return { message: getErrorMessage(error, "Failed to delete API key") };
+      if (!deleted) {
+        throw new NotFoundError("API key not found");
       }
+
+      return { success: true };
     },
     {
       detail: {
