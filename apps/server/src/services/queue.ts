@@ -83,6 +83,9 @@ export const checkQueueHealth = async (): Promise<boolean> => {
   }
 };
 
+// For bull-board dashboard - returns the queue instance (or null if Redis not configured)
+export const getQueue = (): Queue<JobData> | null => getJobQueue();
+
 // For worker process - will throw if Redis not configured
 export const getWorkerConnection = (): ConnectionOptions => {
   const conn = getRedisConnection();

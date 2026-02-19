@@ -23,6 +23,8 @@ import { KeyModel } from "./modules/keys/model";
 import { parseRoutes } from "./modules/parse";
 import { schemasRoutes } from "./modules/schemas";
 import { SchemaModel } from "./modules/schemas/model";
+import { uploadsRoutes } from "./modules/uploads";
+import { bullBoardPlugin } from "./plugins/bullBoard";
 import { errorHandlerPlugin } from "./plugins/errorHandler";
 import { logger } from "./plugins/logging";
 import { rateLimitPlugin } from "./plugins/rateLimit";
@@ -156,9 +158,11 @@ export const app = new Elysia()
   .use(healthRoutes)
   .use(parseRoutes)
   .use(extractRoutes)
+  .use(uploadsRoutes)
   .use(jobsRoutes)
   .use(keysRoutes)
   .use(schemasRoutes)
-  .use(jobsWebSocket);
+  .use(jobsWebSocket)
+  .use(bullBoardPlugin);
 
 export type App = typeof app;
