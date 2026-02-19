@@ -6,7 +6,7 @@ import { useEffect, useRef } from "react";
 
 import type { Job, JobListItem } from "@/lib/queries";
 
-import { isJobProcessing, jobQueryOptions } from "@/lib/queries";
+import { isJobProcessing } from "@/lib/queries";
 import { getJobConnection } from "@/lib/websocket";
 
 interface JobsPageResponse {
@@ -18,10 +18,8 @@ interface JobsPageResponse {
   };
 }
 
-const FALLBACK_RECONCILIATION_INTERVAL_MS = 2000;
-const MAX_FALLBACK_ATTEMPTS = 10;
 const REALTIME_UNAVAILABLE_MESSAGE =
-  "Realtime connection was lost and status refresh failed. Please retry or reload.";
+  "Realtime connection was lost. Please retry or reload.";
 const DEBUG_JOB_REALTIME = import.meta.env.DEV;
 
 const debugJobRealtime = (
@@ -121,93 +119,10 @@ export const useJobRealtime = (
     const release = conn.retain();
 
     let done = false;
-    let fallbackActive = false;
-    let fallbackRun = 0;
-    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const stopFallback = () => {
-      fallbackActive = false;
-      fallbackRun += 1;
-      if (fallbackTimer) {
-        clearTimeout(fallbackTimer);
-        fallbackTimer = null;
-      }
-    };
 
     const cleanup = () => {
-      stopFallback();
       conn.removeListener(listener);
       release();
-    };
-
-    const startFallbackReconciliation = () => {
-      if (fallbackActive) {
-        return;
-      }
-      fallbackActive = true;
-      fallbackRun += 1;
-      const runId = fallbackRun;
-
-      const qc = queryClientRef.current;
-      let attempts = 0;
-      debugJobRealtime(jobId, "fallback_start");
-
-      const tick = async () => {
-        if (!fallbackActive || done || runId !== fallbackRun) {
-          return;
-        }
-
-        try {
-          const latest = await qc.fetchQuery({
-            ...jobQueryOptions(jobId),
-            retry: false,
-            staleTime: 0,
-          });
-
-          if (!fallbackActive || done || runId !== fallbackRun) {
-            return;
-          }
-
-          attempts = 0;
-          qc.setQueryData<Job>(["job", jobId], (old) =>
-            old ? { ...old, errorMessage: null } : old
-          );
-          updateJobsListStatus(qc, jobId, latest.status);
-
-          if (!isJobProcessing(latest.status)) {
-            debugJobRealtime(jobId, "fallback_terminal", {
-              status: latest.status,
-            });
-            done = true;
-            cleanup();
-            return;
-          }
-        } catch {
-          if (!fallbackActive || done || runId !== fallbackRun) {
-            return;
-          }
-          attempts += 1;
-          if (attempts === 1 || attempts === MAX_FALLBACK_ATTEMPTS) {
-            debugJobRealtime(jobId, "fallback_fetch_failed", { attempts });
-          }
-          if (attempts >= MAX_FALLBACK_ATTEMPTS) {
-            debugJobRealtime(jobId, "fallback_exhausted");
-            qc.setQueryData<Job>(["job", jobId], (old) =>
-              old ? { ...old, errorMessage: REALTIME_UNAVAILABLE_MESSAGE } : old
-            );
-            done = true;
-            cleanup();
-            return;
-          }
-        }
-
-        if (!fallbackActive || done || runId !== fallbackRun) {
-          return;
-        }
-        fallbackTimer = setTimeout(tick, FALLBACK_RECONCILIATION_INTERVAL_MS);
-      };
-
-      tick();
     };
 
     const listener = (msg: JobUpdateMessage) => {
@@ -262,13 +177,15 @@ export const useJobRealtime = (
             cleanup();
             break;
           }
-          // If realtime transport/auth fails, reconcile via server fetches so
-          // the detail view and sidebar can still converge to terminal status.
-          debugJobRealtime(jobId, "non_job_ws_error_fallback", {
+          // Non-job WS/auth error — set error message so the UI shows it.
+          // WebSocket reconnection is handled by websocket.ts with exponential backoff.
+          debugJobRealtime(jobId, "non_job_ws_error", {
             error: msg.data?.error,
           });
-          cleanup();
-          startFallbackReconciliation();
+          updateJob((job) => ({
+            ...job,
+            errorMessage: REALTIME_UNAVAILABLE_MESSAGE,
+          }));
           break;
         }
         case "status": {

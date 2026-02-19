@@ -2,11 +2,10 @@ import type { JobUpdateMessage } from "@ocrbase/db/lib/enums";
 import type { InfiniteData } from "@tanstack/react-query";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
-import type { Job, JobListItem } from "@/lib/queries";
+import type { JobListItem } from "@/lib/queries";
 
-import { isJobProcessing, jobQueryOptions } from "@/lib/queries";
 import { getJobConnection } from "@/lib/websocket";
 
 interface JobsPageResponse {
@@ -18,10 +17,6 @@ interface JobsPageResponse {
   };
 }
 
-const FALLBACK_RECONCILIATION_INTERVAL_MS = 2000;
-const MAX_FALLBACK_ATTEMPTS = 10;
-const REALTIME_UNAVAILABLE_MESSAGE =
-  "Realtime connection was lost and status refresh failed. Please retry or reload.";
 const DEBUG_JOBS_REALTIME = import.meta.env.DEV;
 
 const debugJobsRealtime = (
@@ -55,45 +50,12 @@ export const useProcessingJobsRealtime = (processingJobIds: string[]) => {
   const queryClient = useQueryClient();
   const queryClientRef = useRef(queryClient);
   queryClientRef.current = queryClient;
-  const [reconnectTick, setReconnectTick] = useState(0);
 
   const cleanupMap = useRef<Map<string, () => void>>(new Map());
-  const fallbackActiveRef = useRef<Set<string>>(new Set());
-  const fallbackRunRef = useRef<Map<string, number>>(new Map());
-  const fallbackAttemptsRef = useRef<Map<string, number>>(new Map());
-  const fallbackTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
-    new Map()
-  );
   const terminalStatusesRef = useRef<
     Map<string, Extract<JobListItem["status"], "completed" | "failed">>
   >(new Map());
   const applyingTerminalStatusesRef = useRef(false);
-
-  const stopFallback = useCallback((jobId: string) => {
-    fallbackActiveRef.current.delete(jobId);
-    fallbackRunRef.current.delete(jobId);
-    const timer = fallbackTimersRef.current.get(jobId);
-    if (timer) {
-      clearTimeout(timer);
-      fallbackTimersRef.current.delete(jobId);
-    }
-    fallbackAttemptsRef.current.delete(jobId);
-  }, []);
-
-  const markRealtimeUnavailable = useCallback((jobId: string) => {
-    queryClientRef.current.setQueryData<Job>(["job", jobId], (old) =>
-      old ? { ...old, errorMessage: REALTIME_UNAVAILABLE_MESSAGE } : old
-    );
-  }, []);
-
-  const restartRealtimeConnection = useCallback((jobId: string) => {
-    const cleanup = cleanupMap.current.get(jobId);
-    if (cleanup) {
-      cleanup();
-      cleanupMap.current.delete(jobId);
-    }
-    setReconnectTick((tick) => tick + 1);
-  }, []);
 
   const applyTerminalStatuses = useCallback(() => {
     const qc = queryClientRef.current;
@@ -177,98 +139,6 @@ export const useProcessingJobsRealtime = (processingJobIds: string[]) => {
     []
   );
 
-  const startFallback = useCallback(
-    (jobId: string) => {
-      if (fallbackActiveRef.current.has(jobId)) {
-        return;
-      }
-      fallbackActiveRef.current.add(jobId);
-      const runId = (fallbackRunRef.current.get(jobId) ?? 0) + 1;
-      fallbackRunRef.current.set(jobId, runId);
-      debugJobsRealtime(jobId, "fallback_start");
-
-      const tick = async () => {
-        if (
-          !fallbackActiveRef.current.has(jobId) ||
-          fallbackRunRef.current.get(jobId) !== runId
-        ) {
-          return;
-        }
-
-        const attempts = fallbackAttemptsRef.current.get(jobId) ?? 0;
-
-        try {
-          const latest = await queryClientRef.current.fetchQuery({
-            ...jobQueryOptions(jobId),
-            retry: false,
-            staleTime: 0,
-          });
-
-          if (
-            !fallbackActiveRef.current.has(jobId) ||
-            fallbackRunRef.current.get(jobId) !== runId
-          ) {
-            return;
-          }
-
-          fallbackAttemptsRef.current.set(jobId, 0);
-          queryClientRef.current.setQueryData<Job>(["job", jobId], (old) =>
-            old ? { ...old, errorMessage: null } : old
-          );
-          setJobStatus(jobId, latest.status);
-
-          if (!isJobProcessing(latest.status)) {
-            debugJobsRealtime(jobId, "fallback_terminal", {
-              status: latest.status,
-            });
-            stopFallback(jobId);
-            return;
-          }
-        } catch {
-          if (
-            !fallbackActiveRef.current.has(jobId) ||
-            fallbackRunRef.current.get(jobId) !== runId
-          ) {
-            return;
-          }
-
-          const nextAttempts = attempts + 1;
-          fallbackAttemptsRef.current.set(jobId, nextAttempts);
-          if (nextAttempts === 1 || nextAttempts === MAX_FALLBACK_ATTEMPTS) {
-            debugJobsRealtime(jobId, "fallback_fetch_failed", {
-              attempts: nextAttempts,
-            });
-          }
-          if (nextAttempts >= MAX_FALLBACK_ATTEMPTS) {
-            debugJobsRealtime(jobId, "fallback_exhausted");
-            markRealtimeUnavailable(jobId);
-            stopFallback(jobId);
-            restartRealtimeConnection(jobId);
-            return;
-          }
-        }
-
-        if (
-          !fallbackActiveRef.current.has(jobId) ||
-          fallbackRunRef.current.get(jobId) !== runId
-        ) {
-          return;
-        }
-
-        const timer = setTimeout(tick, FALLBACK_RECONCILIATION_INTERVAL_MS);
-        fallbackTimersRef.current.set(jobId, timer);
-      };
-
-      tick();
-    },
-    [
-      markRealtimeUnavailable,
-      restartRealtimeConnection,
-      setJobStatus,
-      stopFallback,
-    ]
-  );
-
   useEffect(() => {
     const currentIds = new Set(processingJobIds);
 
@@ -276,7 +146,6 @@ export const useProcessingJobsRealtime = (processingJobIds: string[]) => {
     for (const [id, cleanup] of cleanupMap.current) {
       if (!currentIds.has(id)) {
         cleanup();
-        stopFallback(id);
         cleanupMap.current.delete(id);
       }
     }
@@ -291,25 +160,29 @@ export const useProcessingJobsRealtime = (processingJobIds: string[]) => {
       const release = conn.retain();
 
       const listener = (msg: JobUpdateMessage) => {
+        if (msg.type === "error" && msg.data?.status !== "failed") {
+          // Non-job WS/auth error — do nothing.
+          // WebSocket reconnection is handled by websocket.ts with exponential backoff.
+          debugJobsRealtime(jobId, "non_job_ws_error", {
+            error: msg.data?.error,
+          });
+          return;
+        }
+
         let nextStatus: JobListItem["status"] | undefined;
         if (msg.type === "status") {
           nextStatus = msg.data?.status;
-        } else if (msg.type === "completed") {
+        }
+        if (msg.type === "completed") {
           nextStatus = "completed";
-        } else if (msg.type === "error" && msg.data?.status === "failed") {
+        }
+        if (msg.type === "error") {
           nextStatus = "failed";
-        } else if (msg.type === "error") {
-          debugJobsRealtime(jobId, "non_job_ws_error_fallback", {
-            error: msg.data?.error,
-          });
-          startFallback(jobId);
-          return;
         }
 
         if (!nextStatus) {
           return;
         }
-        stopFallback(jobId);
         setJobStatus(jobId, nextStatus);
       };
 
@@ -322,13 +195,7 @@ export const useProcessingJobsRealtime = (processingJobIds: string[]) => {
 
       cleanupMap.current.set(jobId, cleanup);
     }
-  }, [
-    processingJobIds,
-    reconnectTick,
-    setJobStatus,
-    startFallback,
-    stopFallback,
-  ]);
+  }, [processingJobIds, setJobStatus]);
 
   // Re-apply terminal statuses after any jobs cache update to prevent
   // stale fetches from regressing completed/failed items back to pending.
@@ -352,23 +219,12 @@ export const useProcessingJobsRealtime = (processingJobIds: string[]) => {
   // Cleanup all on unmount
   useEffect(() => {
     const map = cleanupMap.current;
-    const fallbackTimers = fallbackTimersRef.current;
-    const fallbackActive = fallbackActiveRef.current;
-    const fallbackRuns = fallbackRunRef.current;
-    const fallbackAttempts = fallbackAttemptsRef.current;
     const terminalStatuses = terminalStatusesRef.current;
     return () => {
       for (const cleanup of map.values()) {
         cleanup();
       }
-      for (const timer of fallbackTimers.values()) {
-        clearTimeout(timer);
-      }
       map.clear();
-      fallbackActive.clear();
-      fallbackRuns.clear();
-      fallbackTimers.clear();
-      fallbackAttempts.clear();
       terminalStatuses.clear();
     };
   }, []);
