@@ -1,5 +1,6 @@
 import { auth } from "@ocrbase/auth";
 import { db } from "@ocrbase/db";
+import { member, organization } from "@ocrbase/db/schema/auth";
 import { jobs } from "@ocrbase/db/schema/jobs";
 import { and, eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
@@ -116,13 +117,33 @@ export const jobsWebSocket = new Elysia().ws("/v1/realtime", {
       }
       const session = await auth.api.getSession({ headers });
 
-      if (!session?.user || !session.session.activeOrganizationId) {
+      if (!session?.user) {
         sendErrorAndClose(ws, jobId, "Unauthorized");
         return;
       }
 
       userId = session.user.id;
-      organizationId = session.session.activeOrganizationId;
+
+      // Resolve organization with the same fallback chain as requireAuth
+      let resolvedOrgId = session.session.activeOrganizationId;
+
+      if (!resolvedOrgId) {
+        const [membership] = await db
+          .select({ orgId: organization.id })
+          .from(member)
+          .innerJoin(organization, eq(member.organizationId, organization.id))
+          .where(eq(member.userId, session.user.id))
+          .limit(1);
+
+        resolvedOrgId = membership?.orgId ?? null;
+      }
+
+      if (!resolvedOrgId) {
+        sendErrorAndClose(ws, jobId, "No active organization");
+        return;
+      }
+
+      organizationId = resolvedOrgId;
     }
 
     const job = await findJob(jobId, organizationId);

@@ -3,6 +3,11 @@ import { jobs } from "@ocrbase/db/schema/jobs";
 import { eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 
+import {
+  BadRequestError,
+  ForbiddenError,
+  NotFoundError,
+} from "../../lib/errors";
 import { requireAuth } from "../../plugins/auth";
 import { SchemaModel } from "./model";
 import { SchemaService } from "./service";
@@ -35,36 +40,22 @@ const formatSchemaResponse = (schema: {
   userId: schema.userId,
 });
 
-const getErrorMessage = (caught: unknown, fallback: string): string =>
-  caught instanceof Error ? caught.message : fallback;
-
 export const schemasRoutes = new Elysia({ prefix: "/v1/schemas" })
   .use(requireAuth)
   .post(
     "/",
-    async ({ body, user, organization, set }) => {
+    async ({ body, user, organization }) => {
       if (!user || !organization) {
-        set.status = 401;
-        return { message: "Unauthorized" };
+        throw new Error("Unauthorized");
       }
 
-      try {
-        const schema = await SchemaService.create(
-          organization.id,
-          user.id,
-          body
-        );
+      const schema = await SchemaService.create(organization.id, user.id, body);
 
-        if (!schema) {
-          set.status = 500;
-          return { message: "Failed to create schema" };
-        }
-
-        return formatSchemaResponse(schema);
-      } catch (error) {
-        set.status = 500;
-        return { message: getErrorMessage(error, "Failed to create schema") };
+      if (!schema) {
+        throw new Error("Failed to create schema");
       }
+
+      return formatSchemaResponse(schema);
     },
     {
       body: SchemaModel.createBody,
@@ -85,19 +76,13 @@ Define a JSON Schema that specifies the structure of data to extract from docume
   )
   .get(
     "/",
-    async ({ user, organization, set }) => {
+    async ({ user, organization }) => {
       if (!user || !organization) {
-        set.status = 401;
-        return { message: "Unauthorized" };
+        throw new Error("Unauthorized");
       }
 
-      try {
-        const schemasList = await SchemaService.list(organization.id, user.id);
-        return schemasList.map(formatSchemaResponse);
-      } catch (error) {
-        set.status = 500;
-        return { message: getErrorMessage(error, "Failed to list schemas") };
-      }
+      const schemasList = await SchemaService.list(organization.id, user.id);
+      return schemasList.map(formatSchemaResponse);
     },
     {
       detail: {
@@ -116,29 +101,22 @@ Returns schema metadata including usage statistics and last used timestamp.`,
   )
   .get(
     "/:id",
-    async ({ params, user, organization, set }) => {
+    async ({ params, user, organization }) => {
       if (!user || !organization) {
-        set.status = 401;
-        return { message: "Unauthorized" };
+        throw new Error("Unauthorized");
       }
 
-      try {
-        const schema = await SchemaService.getById(
-          organization.id,
-          user.id,
-          params.id
-        );
+      const schema = await SchemaService.getById(
+        organization.id,
+        user.id,
+        params.id
+      );
 
-        if (!schema) {
-          set.status = 404;
-          return { message: "Schema not found" };
-        }
-
-        return formatSchemaResponse(schema);
-      } catch (error) {
-        set.status = 500;
-        return { message: getErrorMessage(error, "Failed to get schema") };
+      if (!schema) {
+        throw new NotFoundError("Schema not found");
       }
+
+      return formatSchemaResponse(schema);
     },
     {
       detail: {
@@ -165,30 +143,23 @@ Returns the full JSON schema definition and usage statistics.`,
   )
   .patch(
     "/:id",
-    async ({ params, body, user, organization, set }) => {
+    async ({ params, body, user, organization }) => {
       if (!user || !organization) {
-        set.status = 401;
-        return { message: "Unauthorized" };
+        throw new Error("Unauthorized");
       }
 
-      try {
-        const schema = await SchemaService.update(
-          organization.id,
-          user.id,
-          params.id,
-          body
-        );
+      const schema = await SchemaService.update(
+        organization.id,
+        user.id,
+        params.id,
+        body
+      );
 
-        if (!schema) {
-          set.status = 404;
-          return { message: "Schema not found" };
-        }
-
-        return formatSchemaResponse(schema);
-      } catch (error) {
-        set.status = 500;
-        return { message: getErrorMessage(error, "Failed to update schema") };
+      if (!schema) {
+        throw new NotFoundError("Schema not found");
       }
+
+      return formatSchemaResponse(schema);
     },
     {
       body: SchemaModel.updateBody,
@@ -217,29 +188,22 @@ Modify the name, description, or JSON schema definition. Changes apply to future
   )
   .delete(
     "/:id",
-    async ({ params, user, organization, set }) => {
+    async ({ params, user, organization }) => {
       if (!user || !organization) {
-        set.status = 401;
-        return { message: "Unauthorized" };
+        throw new Error("Unauthorized");
       }
 
-      try {
-        const deleted = await SchemaService.delete(
-          organization.id,
-          user.id,
-          params.id
-        );
+      const deleted = await SchemaService.delete(
+        organization.id,
+        user.id,
+        params.id
+      );
 
-        if (!deleted) {
-          set.status = 404;
-          return { message: "Schema not found" };
-        }
-
-        return { success: true };
-      } catch (error) {
-        set.status = 500;
-        return { message: getErrorMessage(error, "Failed to delete schema") };
+      if (!deleted) {
+        throw new NotFoundError("Schema not found");
       }
+
+      return { success: true };
     },
     {
       detail: {
@@ -266,63 +230,40 @@ This action cannot be undone. Existing jobs that used this schema are not affect
   )
   .post(
     "/generate",
-    async ({ body, user, organization, set }) => {
+    async ({ body, user, organization }) => {
       if (!user || !organization) {
-        set.status = 401;
-        return { message: "Unauthorized" };
+        throw new Error("Unauthorized");
       }
 
-      try {
-        let markdown: string;
-        let sampleJobId: string | undefined;
-
-        if (body.jobId) {
-          const [job] = await db
-            .select()
-            .from(jobs)
-            .where(eq(jobs.id, body.jobId));
-
-          if (!job) {
-            set.status = 404;
-            return { message: "Job not found" };
-          }
-
-          if (job.organizationId !== organization.id) {
-            set.status = 403;
-            return { message: "Access denied" };
-          }
-
-          if (!job.markdownResult) {
-            set.status = 400;
-            return {
-              message:
-                "Job has not been processed yet or has no markdown result",
-            };
-          }
-
-          markdown = job.markdownResult;
-          sampleJobId = job.id;
-        } else {
-          set.status = 400;
-          return {
-            message:
-              "Either jobId or file must be provided. File upload not yet supported.",
-          };
-        }
-
-        const result = await SchemaService.generate(
-          organization.id,
-          user.id,
-          markdown,
-          body.hints,
-          sampleJobId
+      if (!body.jobId) {
+        throw new BadRequestError(
+          "Either jobId or file must be provided. File upload not yet supported."
         );
-
-        return result;
-      } catch (error) {
-        set.status = 500;
-        return { message: getErrorMessage(error, "Failed to generate schema") };
       }
+
+      const [job] = await db.select().from(jobs).where(eq(jobs.id, body.jobId));
+
+      if (!job) {
+        throw new NotFoundError("Job not found");
+      }
+
+      if (job.organizationId !== organization.id) {
+        throw new ForbiddenError("Access denied");
+      }
+
+      if (!job.markdownResult) {
+        throw new BadRequestError(
+          "Job has not been processed yet or has no markdown result"
+        );
+      }
+
+      return SchemaService.generate(
+        organization.id,
+        user.id,
+        job.markdownResult,
+        body.hints,
+        job.id
+      );
     },
     {
       body: SchemaModel.generateBody,
