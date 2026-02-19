@@ -46,7 +46,9 @@ const waitForJob = (jobId: string, timeoutMs = 30_000): Promise<JobMessage> => {
     if (msg.type === "completed") {
       cleanup();
       resolve(msg);
-    } else if (msg.type === "error") {
+      return;
+    }
+    if (msg.type === "error") {
       cleanup();
       reject(new Error(msg.data.error));
     }

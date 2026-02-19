@@ -6,6 +6,7 @@ import { and, asc, count, desc, eq } from "drizzle-orm";
 
 import type { CreateJobBody, ListJobsQuery, PaginationMeta } from "./model";
 
+import { BadRequestError, NotFoundError } from "../../lib/errors";
 import { addJob } from "../../services/queue";
 import { StorageService } from "../../services/storage";
 
@@ -29,6 +30,24 @@ interface CreateJobInput {
 interface CreateJobFromUrlInput {
   apiKeyId?: string;
   body: CreateJobBody & { url: string };
+  organizationId: string;
+  requestId?: string;
+  userId: string;
+}
+
+interface CreatePresignedUploadInput {
+  fileName: string;
+  fileSize: number;
+  hints?: string;
+  mimeType: string;
+  organizationId: string;
+  schemaId?: string;
+  type: "parse" | "extract";
+  userId: string;
+}
+
+interface ConfirmUploadInput {
+  jobId: string;
   organizationId: string;
   requestId?: string;
   userId: string;
@@ -154,7 +173,7 @@ const deleteJob = async (
   const job = await getById(organizationId, userId, jobId);
 
   if (!job) {
-    throw new Error("Job not found");
+    throw new NotFoundError("Job not found");
   }
 
   if (job.fileKey) {
@@ -248,12 +267,12 @@ const getDownloadContent = async (
   const job = await getById(organizationId, userId, jobId);
 
   if (!job) {
-    throw new Error("Job not found");
+    throw new NotFoundError("Job not found");
   }
 
   if (format === "json") {
     if (!job.jsonResult) {
-      throw new Error("JSON result not available");
+      throw new BadRequestError("JSON result not available");
     }
 
     return {
@@ -264,7 +283,7 @@ const getDownloadContent = async (
   }
 
   if (!job.markdownResult) {
-    throw new Error("Markdown result not available");
+    throw new BadRequestError("Markdown result not available");
   }
 
   return {
@@ -274,8 +293,93 @@ const getDownloadContent = async (
   };
 };
 
+const createForPresignedUpload = async (
+  input: CreatePresignedUploadInput
+): Promise<{ job: Job; uploadUrl: string }> => {
+  const {
+    fileName,
+    fileSize,
+    hints,
+    mimeType,
+    organizationId,
+    schemaId,
+    type,
+    userId,
+  } = input;
+
+  const [newJob] = await db
+    .insert(jobs)
+    .values({
+      fileKey: null,
+      fileName,
+      fileSize,
+      hints,
+      mimeType,
+      organizationId,
+      schemaId,
+      status: "pending",
+      type,
+      userId,
+    })
+    .returning();
+
+  if (!newJob) {
+    throw new Error("Failed to create job");
+  }
+
+  const fileKey = `${organizationId}/jobs/${newJob.id}/${fileName}`;
+
+  const [updatedJob] = await db
+    .update(jobs)
+    .set({ fileKey })
+    .where(eq(jobs.id, newJob.id))
+    .returning();
+
+  if (!updatedJob) {
+    throw new Error("Failed to update job with file key");
+  }
+
+  const uploadUrl = StorageService.getPresignedUploadUrl(fileKey, mimeType);
+
+  return { job: updatedJob, uploadUrl };
+};
+
+const confirmUpload = async (input: ConfirmUploadInput): Promise<Job> => {
+  const { jobId, organizationId, requestId, userId } = input;
+
+  const job = await getById(organizationId, userId, jobId);
+
+  if (!job) {
+    throw new NotFoundError("Job not found");
+  }
+
+  if (job.status !== "pending") {
+    throw new BadRequestError("Job has already been submitted");
+  }
+
+  if (!job.fileKey) {
+    throw new BadRequestError("Job has no file key");
+  }
+
+  const exists = await StorageService.fileExists(job.fileKey);
+  if (!exists) {
+    throw new BadRequestError("File has not been uploaded to storage yet");
+  }
+
+  await addJob({
+    jobId: job.id,
+    organizationId,
+    requestId,
+    userId,
+  });
+
+  return job;
+};
+
 export const JobService = {
+  confirmUpload,
   create,
+  createForPresignedUpload,
   createFromUrl,
   delete: deleteJob,
   getById,

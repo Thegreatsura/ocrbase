@@ -698,18 +698,24 @@ const createRealtimeJobUrl = (baseUrl: string, jobId: string): string => {
   return url.toString();
 };
 
-const parseRealtimeMessage = (raw: unknown): Record<string, unknown> | null => {
-  let text: string;
-
+const decodeRawToText = (raw: unknown): string | null => {
   if (typeof raw === "string") {
-    text = raw;
-  } else if (raw instanceof ArrayBuffer) {
-    text = new TextDecoder().decode(new Uint8Array(raw));
-  } else if (ArrayBuffer.isView(raw)) {
-    text = new TextDecoder().decode(
+    return raw;
+  }
+  if (raw instanceof ArrayBuffer) {
+    return new TextDecoder().decode(new Uint8Array(raw));
+  }
+  if (ArrayBuffer.isView(raw)) {
+    return new TextDecoder().decode(
       new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength)
     );
-  } else {
+  }
+  return null;
+};
+
+const parseRealtimeMessage = (raw: unknown): Record<string, unknown> | null => {
+  const text = decodeRawToText(raw);
+  if (!text) {
     return null;
   }
 

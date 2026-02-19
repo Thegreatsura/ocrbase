@@ -163,7 +163,10 @@ export const jobsWebSocket = new Elysia().ws("/v1/realtime", {
         jobId,
         type: "completed",
       });
-    } else if (latestJob.status === "failed") {
+      return;
+    }
+
+    if (latestJob.status === "failed") {
       ws.send({
         data: {
           error: latestJob.errorMessage ?? "Job failed",
@@ -172,13 +175,14 @@ export const jobsWebSocket = new Elysia().ws("/v1/realtime", {
         jobId,
         type: "error",
       });
-    } else {
-      ws.send({
-        data: { status: latestJob.status },
-        jobId,
-        type: "status",
-      });
+      return;
     }
+
+    ws.send({
+      data: { status: latestJob.status },
+      jobId,
+      type: "status",
+    });
   },
 
   query: t.Object({

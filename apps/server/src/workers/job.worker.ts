@@ -47,12 +47,13 @@ const toErrorContext = (
       stack: recordStack,
     } = record;
 
-    let code = "UNKNOWN_ERROR";
-    if (typeof recordCode === "string") {
-      code = recordCode;
-    } else if (typeof recordName === "string") {
-      code = recordName;
-    }
+    const code =
+      // eslint-disable-next-line no-nested-ternary
+      typeof recordCode === "string"
+        ? recordCode
+        : (typeof recordName === "string"
+          ? recordName
+          : "UNKNOWN_ERROR");
     const message =
       typeof recordMessage === "string" ? recordMessage : String(error);
     const stack = typeof recordStack === "string" ? recordStack : undefined;
@@ -192,6 +193,7 @@ const finishParseJob = async (
   return processingTimeMs;
 };
 
+// eslint-disable-next-line complexity
 const processJob = async (bullJob: BullJob<JobData>): Promise<void> => {
   const { jobId } = bullJob.data;
   const startTime = Date.now();
@@ -233,7 +235,11 @@ const processJob = async (bullJob: BullJob<JobData>): Promise<void> => {
     let fileBuffer: Buffer;
     let { mimeType } = job;
 
-    if (!job.fileKey && job.sourceUrl) {
+    if (!job.fileKey && !job.sourceUrl) {
+      throw new Error("No file or URL provided for job");
+    }
+
+    if (job.sourceUrl && !job.fileKey) {
       // URL job: fetch from source, process in memory, no S3
       const response = await fetch(job.sourceUrl);
 
@@ -256,15 +262,13 @@ const processJob = async (bullJob: BullJob<JobData>): Promise<void> => {
         fileSize: fileBuffer.length,
         mimeType: contentType,
       });
-    } else if (job.fileKey) {
+    } else {
       // File upload: read from S3
       eventContext.source = "storage";
       const storageStart = Date.now();
-      fileBuffer = await StorageService.getFile(job.fileKey);
+      fileBuffer = await StorageService.getFile(job.fileKey ?? "");
       const storageDurationMs = Date.now() - storageStart;
       eventContext.storageDurationMs = storageDurationMs;
-    } else {
-      throw new Error("No file or URL provided for job");
     }
 
     const ocrStart = Date.now();

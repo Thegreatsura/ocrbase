@@ -32,16 +32,52 @@ export const FileUpload = ({ mode, title, description }: FileUploadProps) => {
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
-      const endpoint = mode === "extract" ? api.v1.extract : api.v1.parse;
-      const res = await endpoint.post({ file });
-      if (res.error) {
+      // Step 1: Get presigned upload URL
+      const presignRes = await api.v1.uploads.presign.post({
+        fileName: file.name,
+        fileSize: file.size,
+        mimeType: file.type as
+          | "application/pdf"
+          | "image/png"
+          | "image/jpeg"
+          | "image/webp"
+          | "image/tiff",
+        type: mode,
+      });
+      if (presignRes.error) {
         throw new Error(
-          typeof res.error === "object" && "message" in res.error
-            ? String(res.error.message)
-            : "Upload failed"
+          typeof presignRes.error === "object" && "message" in presignRes.error
+            ? String(presignRes.error.message)
+            : "Failed to prepare upload"
         );
       }
-      return res.data as { id: string };
+      const { jobId, uploadUrl } = presignRes.data as {
+        jobId: string;
+        uploadUrl: string;
+      };
+
+      // Step 2: Upload file directly to S3
+      const s3Res = await fetch(uploadUrl, {
+        body: file,
+        headers: { "Content-Type": file.type },
+        method: "PUT",
+      });
+      if (!s3Res.ok) {
+        throw new Error("Failed to upload file to storage");
+      }
+
+      // Step 3: Confirm upload and start processing
+      const completeRes = await api.v1.uploads({ jobId }).complete.post();
+      if (completeRes.error) {
+        throw new Error(
+          typeof completeRes.error === "object" &&
+            "message" in completeRes.error
+            ? String(completeRes.error.message)
+            : "Failed to confirm upload"
+        );
+      }
+
+      return { id: jobId };
     },
     onSuccess: (data, file) => {
       interface JobsPageResponse {

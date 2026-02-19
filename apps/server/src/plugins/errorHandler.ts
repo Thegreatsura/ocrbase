@@ -8,6 +8,7 @@ interface ErrorResponse {
 }
 
 const ERROR_CODE_MAP: Record<string, number> = {
+  BAD_REQUEST: 400,
   FORBIDDEN: 403,
   INTERNAL_SERVER_ERROR: 500,
   NOT_FOUND: 404,
@@ -23,37 +24,41 @@ const getStatusFromError = (error: Error): number => {
 export const errorHandlerPlugin = new Elysia({ name: "errorHandler" }).onError(
   ({ code, error, set, ...rest }): ErrorResponse => {
     const reqId = (rest as { requestId?: string }).requestId;
-    let statusCode = 500;
-    let errorName = "Internal Server Error";
-    let message = "An unexpected error occurred";
-
     const isError = error instanceof Error;
 
+    const respond = (
+      statusCode: number,
+      errorName: string,
+      message: string
+    ): ErrorResponse => {
+      set.status = statusCode;
+      return { error: errorName, message, requestId: reqId, statusCode };
+    };
+
     if (code === "VALIDATION" && isError) {
-      statusCode = 400;
-      errorName = "Validation Error";
-      ({ message } = error);
-    } else if (code === "NOT_FOUND") {
-      statusCode = 404;
-      errorName = "Not Found";
-      message = "The requested resource was not found";
-    } else if (code === "PARSE") {
-      statusCode = 400;
-      errorName = "Parse Error";
-      message = "Invalid request body";
-    } else if (isError) {
-      statusCode = getStatusFromError(error);
-      errorName = error.name || "Error";
-      message = error.message || message;
+      return respond(400, "Validation Error", error.message);
     }
 
-    set.status = statusCode;
+    if (code === "NOT_FOUND") {
+      return respond(404, "Not Found", "The requested resource was not found");
+    }
 
-    return {
-      error: errorName,
-      message,
-      requestId: reqId,
-      statusCode,
-    };
+    if (code === "PARSE") {
+      return respond(400, "Parse Error", "Invalid request body");
+    }
+
+    if (isError) {
+      return respond(
+        getStatusFromError(error),
+        error.name || "Error",
+        error.message || "An unexpected error occurred"
+      );
+    }
+
+    return respond(
+      500,
+      "Internal Server Error",
+      "An unexpected error occurred"
+    );
   }
 );

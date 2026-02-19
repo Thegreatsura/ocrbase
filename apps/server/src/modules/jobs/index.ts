@@ -1,8 +1,12 @@
 import { Elysia, t } from "elysia";
 
+import { NotFoundError } from "../../lib/errors";
 import { requireAuth } from "../../plugins/auth";
 import { JobService } from "./service";
-import { formatJobResponse, getErrorMessage, getWideEvent } from "./shared";
+import { formatJobResponse, getWideEvent } from "./shared";
+
+const getErrorMessage = (caught: unknown, fallback: string): string =>
+  caught instanceof Error ? caught.message : fallback;
 
 const sanitizeFileName = (name: string) => name.replaceAll(/["\r\n\\;]/g, "_");
 
@@ -33,30 +37,24 @@ export const jobsRoutes = new Elysia({ prefix: "/v1/jobs" })
   .use(requireAuth)
   .get(
     "/",
-    async ({ organization, query, set, user }) => {
+    async ({ organization, query, user }) => {
       if (!user || !organization) {
-        set.status = 401;
-        return { message: "Unauthorized" };
+        throw new Error("Unauthorized");
       }
 
-      try {
-        const result = await JobService.list(organization.id, user.id, {
-          limit: query.limit,
-          page: query.page,
-          sortBy: query.sortBy,
-          sortOrder: query.sortOrder,
-          status: query.status,
-          type: query.type,
-        });
+      const result = await JobService.list(organization.id, user.id, {
+        limit: query.limit,
+        page: query.page,
+        sortBy: query.sortBy,
+        sortOrder: query.sortOrder,
+        status: query.status,
+        type: query.type,
+      });
 
-        return {
-          data: result.data.map(formatJobResponse),
-          pagination: result.pagination,
-        };
-      } catch (error) {
-        set.status = 500;
-        return { message: getErrorMessage(error, "Failed to list jobs") };
-      }
+      return {
+        data: result.data.map(formatJobResponse),
+        pagination: result.pagination,
+      };
     },
     {
       detail: {
@@ -127,38 +125,27 @@ Results are paginated with configurable page size (max 100).`,
   .get(
     "/:id",
     async (ctx) => {
-      const { organization, params, set, user } = ctx;
+      const { organization, params, user } = ctx;
       const wideEvent = getWideEvent(ctx);
 
       if (!user || !organization) {
-        set.status = 401;
-        return { message: "Unauthorized" };
+        throw new Error("Unauthorized");
       }
 
-      try {
-        const job = await JobService.getById(
-          organization.id,
-          user.id,
-          params.id
-        );
+      const job = await JobService.getById(organization.id, user.id, params.id);
 
-        if (!job) {
-          set.status = 404;
-          return { message: "Job not found" };
-        }
-
-        wideEvent?.setJob({
-          id: job.id,
-          pageCount: job.pageCount ?? undefined,
-          status: job.status,
-          type: job.type,
-        });
-
-        return formatJobResponse(job);
-      } catch (error) {
-        set.status = 500;
-        return { message: getErrorMessage(error, "Failed to get job") };
+      if (!job) {
+        throw new NotFoundError("Job not found");
       }
+
+      wideEvent?.setJob({
+        id: job.id,
+        pageCount: job.pageCount ?? undefined,
+        status: job.status,
+        type: job.type,
+      });
+
+      return formatJobResponse(job);
     },
     {
       detail: {

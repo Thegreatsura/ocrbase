@@ -36,13 +36,14 @@ export const OpenApiTags = [
   { description: "OCR job management", name: "Jobs" },
   { description: "API key management", name: "Keys" },
   { description: "Extraction schema management", name: "Schemas" },
+  { description: "Direct upload with presigned URLs", name: "Uploads" },
 ];
 
 // Tag groups for better organization in docs (Scalar/Redocly extension)
 export const OpenApiTagGroups = [
   { name: "System", tags: ["Health"] },
   { name: "Authentication", tags: ["Auth", "Organization"] },
-  { name: "Documents", tags: ["Parse", "Extract", "Jobs"] },
+  { name: "Documents", tags: ["Parse", "Extract", "Uploads", "Jobs"] },
   { name: "Configuration", tags: ["Keys", "Schemas"] },
 ];
 
