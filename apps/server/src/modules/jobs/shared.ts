@@ -13,9 +13,6 @@ interface ContextWithWideEvent {
 export const getWideEvent = (ctx: unknown): WideEventContext | undefined =>
   (ctx as ContextWithWideEvent).wideEvent;
 
-export const getErrorMessage = (error: unknown, fallback: string): string =>
-  error instanceof Error ? error.message : fallback;
-
 export const formatJobResponse = (job: Job): JobResponse => ({
   completedAt: job.completedAt?.toISOString() ?? null,
   createdAt: job.createdAt.toISOString(),
