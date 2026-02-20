@@ -348,10 +348,13 @@ const worker = new Worker<JobData>("ocr-jobs", processJob, {
   connection: getWorkerConnection(),
 });
 
-worker.on("failed", async (job, error) => {
+worker.on("failed", (job, error) => {
   const jobId = job?.data.jobId;
+  if (!jobId) {
+    return;
+  }
 
-  if (jobId) {
+  (async () => {
     let errorCode = error.name || "PROCESSING_ERROR";
     let errorMessage = error.message || "Unknown error occurred";
     const attempts = job?.attemptsMade ?? 0;
@@ -368,7 +371,20 @@ worker.on("failed", async (job, error) => {
     }
 
     await failJob(jobId, errorCode, errorMessage, shouldRetry);
-  }
+    // eslint-disable-next-line promise/prefer-await-to-then -- intentional: EventEmitter handlers cannot be async
+  })().catch((handlerError) => {
+    workerLogger.error(
+      {
+        error: {
+          code: handlerError.name,
+          message: handlerError.message,
+          stack: handlerError.stack,
+        },
+        jobId,
+      },
+      "failed_handler_error"
+    );
+  });
 });
 
 worker.on("error", (error) => {

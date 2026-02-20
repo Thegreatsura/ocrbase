@@ -39,8 +39,4 @@ export type JobUpdateMessage =
         error: string;
         status?: "failed";
       };
-    }
-  | {
-      type: "pong";
-      jobId: string;
     };
