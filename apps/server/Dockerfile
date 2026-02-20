@@ -28,6 +28,11 @@ RUN export BETTER_AUTH_SECRET=build-time-dummy-secret-at-least-32-chars \
     && bun run ./scripts/generate-openapi.ts \
     && bun run compile
 
+# Copy bull-board UI assets for production (compiled binary can't resolve node_modules)
+RUN mkdir -p /app/bull-board && \
+    UI_PKG=$(bun -e "process.stdout.write(require('path').dirname(require.resolve('@bull-board/ui/package.json')))") && \
+    cp -r "$UI_PKG/dist" /app/bull-board/dist
+
 # Production stage - minimal distroless image
 FROM gcr.io/distroless/base-debian12:nonroot
 
@@ -36,10 +41,11 @@ WORKDIR /app
 # Set production environment
 ENV NODE_ENV=production
 
-# Copy the compiled binaries and pre-generated OpenAPI spec
+# Copy the compiled binaries, OpenAPI spec, and bull-board UI assets
 COPY --from=builder /app/apps/server/server /app/server
 COPY --from=builder /app/apps/server/worker /app/worker
 COPY --from=builder /app/apps/server/dist/openapi.json /app/dist/openapi.json
+COPY --from=builder /app/bull-board /app/bull-board
 
 # Expose port
 EXPOSE 3000

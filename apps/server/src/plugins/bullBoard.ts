@@ -8,6 +8,10 @@ import { getQueue } from "../services/queue";
 
 const BOARD_BASE_PATH = "/admin/queues";
 
+// Compiled Bun binaries run from $bunfs; UI assets must be read from /app/bull-board
+const isCompiledRuntime = import.meta.dir.includes("$bunfs");
+const BULL_BOARD_UI_PATH = isCompiledRuntime ? "/app/bull-board" : undefined;
+
 export const bullBoardPlugin = new Elysia({ name: "bull-board" })
   .onBeforeHandle({ as: "scoped" }, async ({ request, set }) => {
     if (!request.url.includes(BOARD_BASE_PATH)) {
@@ -29,6 +33,9 @@ export const bullBoardPlugin = new Elysia({ name: "bull-board" })
     const serverAdapter = new ElysiaAdapter(BOARD_BASE_PATH);
 
     createBullBoard({
+      options: {
+        uiBasePath: BULL_BOARD_UI_PATH,
+      },
       queues: [new BullMQAdapter(queue)],
       serverAdapter,
     });
