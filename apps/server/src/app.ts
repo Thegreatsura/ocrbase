@@ -17,7 +17,7 @@ import { extractRoutes } from "./modules/extract";
 import { healthRoutes } from "./modules/health";
 import { jobsRoutes } from "./modules/jobs";
 import { JobModel } from "./modules/jobs/model";
-import { jobsWebSocket } from "./modules/jobs/websocket";
+import { jobsSse } from "./modules/jobs/sse";
 import { keysRoutes } from "./modules/keys";
 import { KeyModel } from "./modules/keys/model";
 import { parseRoutes } from "./modules/parse";
@@ -162,7 +162,7 @@ export const app = new Elysia()
   .use(jobsRoutes)
   .use(keysRoutes)
   .use(schemasRoutes)
-  .use(jobsWebSocket)
+  .use(jobsSse)
   .use(bullBoardPlugin);
 
 export type App = typeof app;

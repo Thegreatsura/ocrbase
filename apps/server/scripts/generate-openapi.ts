@@ -20,7 +20,7 @@ import { extractRoutes } from "../src/modules/extract";
 import { healthRoutes } from "../src/modules/health";
 import { jobsRoutes } from "../src/modules/jobs";
 import { JobModel } from "../src/modules/jobs/model";
-import { jobsWebSocket } from "../src/modules/jobs/websocket";
+import { jobsSse } from "../src/modules/jobs/sse";
 import { keysRoutes } from "../src/modules/keys";
 import { KeyModel } from "../src/modules/keys/model";
 import { parseRoutes } from "../src/modules/parse";
@@ -75,7 +75,7 @@ const app = new Elysia()
   .use(jobsRoutes)
   .use(keysRoutes)
   .use(schemasRoutes)
-  .use(jobsWebSocket);
+  .use(jobsSse);
 
 // Generate the OpenAPI spec from /openapi/json endpoint
 const response = await app.handle(new Request("http://localhost/openapi/json"));
