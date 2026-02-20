@@ -5,8 +5,6 @@ import { z } from "zod";
 
 const DEFAULT_BASE_URL = "https://api.ocrbase.dev";
 const DEFAULT_TIMEOUT_MS = 5 * 60_000;
-const DEFAULT_WS_MAX_RECONNECT_ATTEMPTS = 5;
-const DEFAULT_WS_RECONNECT_BASE_DELAY_MS = 500;
 const DEFAULT_PARSE_MODEL = "paddleocr-vl-1.5";
 const DEFAULT_SCHEMA_NAME_PREFIX = "sdk-schema";
 const DEFAULT_FILE_NAME = "document.pdf";
@@ -46,9 +44,6 @@ export type DocumentInput =
 export interface OcrBaseConfig {
   apiKey?: string;
   baseUrl?: string;
-  createWebSocket?: (url: string, apiKey: string) => WebSocket;
-  wsMaxReconnectAttempts?: number;
-  wsReconnectBaseDelayMs?: number;
   timeoutMs?: number;
 }
 
@@ -183,10 +178,7 @@ export type ExtractDocumentOptions<TSchema = unknown> = Omit<
 >;
 
 interface RealtimeConfig {
-  createWebSocket: (url: string, apiKey: string) => WebSocket;
   timeoutMs: number;
-  wsMaxReconnectAttempts: number;
-  wsReconnectBaseDelayMs: number;
 }
 
 interface NormalizedDocumentRequest {
@@ -277,36 +269,12 @@ const getApiKeyFromEnv = (): string | undefined => {
 const normalizeBaseUrl = (baseUrl: string): string =>
   baseUrl.replace(/\/+$/, "");
 
-const addApiKeyToRealtimeUrl = (url: string, apiKey: string): string => {
-  const next = new URL(url);
-  next.searchParams.set("api_key", apiKey);
-  return next.toString();
-};
-
-const defaultCreateWebSocket = (url: string, apiKey: string): WebSocket => {
-  if (typeof Bun !== "undefined") {
-    return new WebSocket(url, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-    } as unknown as string | string[]);
-  }
-
-  if (typeof WebSocket !== "undefined") {
-    return new WebSocket(addApiKeyToRealtimeUrl(url, apiKey));
-  }
-
-  throw new Error(
-    "WebSocket is not available in this runtime. Pass `createWebSocket` in createOcrBase()."
-  );
-};
-
 const resolveConfig = (
   config: OcrBaseConfig
 ): {
   apiKey: string;
   baseUrl: string;
-  realtime: RealtimeConfig;
+  timeoutMs: number;
 } => {
   const apiKey = config.apiKey ?? getApiKeyFromEnv();
   if (!apiKey) {
@@ -318,14 +286,7 @@ const resolveConfig = (
   return {
     apiKey,
     baseUrl: normalizeBaseUrl(config.baseUrl ?? DEFAULT_BASE_URL),
-    realtime: {
-      createWebSocket: config.createWebSocket ?? defaultCreateWebSocket,
-      timeoutMs: config.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-      wsMaxReconnectAttempts:
-        config.wsMaxReconnectAttempts ?? DEFAULT_WS_MAX_RECONNECT_ATTEMPTS,
-      wsReconnectBaseDelayMs:
-        config.wsReconnectBaseDelayMs ?? DEFAULT_WS_RECONNECT_BASE_DELAY_MS,
-    },
+    timeoutMs: config.timeoutMs ?? DEFAULT_TIMEOUT_MS,
   };
 };
 
@@ -496,15 +457,10 @@ const normalizeDocumentRequest = async ({
 
 const normalizeRealtimeConfig = (
   input: Pick<ParseInput, "timeoutMs">,
-  defaults: RealtimeConfig
+  defaultTimeoutMs: number
 ): RealtimeConfig => ({
-  createWebSocket: defaults.createWebSocket,
   timeoutMs:
-    input.timeoutMs && input.timeoutMs > 0
-      ? input.timeoutMs
-      : defaults.timeoutMs,
-  wsMaxReconnectAttempts: defaults.wsMaxReconnectAttempts,
-  wsReconnectBaseDelayMs: defaults.wsReconnectBaseDelayMs,
+    input.timeoutMs && input.timeoutMs > 0 ? input.timeoutMs : defaultTimeoutMs,
 });
 
 const createSdkError = (
@@ -690,44 +646,15 @@ const schemaToJsonSchema = (schema: unknown): Record<string, unknown> => {
   );
 };
 
-const createRealtimeJobUrl = (baseUrl: string, jobId: string): string => {
-  const url = new URL(baseUrl);
-  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  url.pathname = `${url.pathname.replace(/\/+$/, "")}/v1/realtime`;
+const createRealtimeUrl = (
+  baseUrl: string,
+  apiKey: string,
+  jobId: string
+): string => {
+  const url = new URL(`${baseUrl}/v1/realtime`);
   url.searchParams.set("job_id", jobId);
+  url.searchParams.set("api_key", apiKey);
   return url.toString();
-};
-
-const decodeRawToText = (raw: unknown): string | null => {
-  if (typeof raw === "string") {
-    return raw;
-  }
-  if (raw instanceof ArrayBuffer) {
-    return new TextDecoder().decode(new Uint8Array(raw));
-  }
-  if (ArrayBuffer.isView(raw)) {
-    return new TextDecoder().decode(
-      new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength)
-    );
-  }
-  return null;
-};
-
-const parseRealtimeMessage = (raw: unknown): Record<string, unknown> | null => {
-  const text = decodeRawToText(raw);
-  if (!text) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(text);
-    if (!isPlainObject(parsed)) {
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
 };
 
 interface RealtimeCompletionPayload {
@@ -736,171 +663,166 @@ interface RealtimeCompletionPayload {
   processingTimeMs?: number;
 }
 
-const waitForCompletedJob = (
+const handleSseEvent = (
+  eventType: string,
+  data: string,
+  jobId: string
+): OcrResult<RealtimeCompletionPayload, unknown> | null => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(data);
+  } catch {
+    return null;
+  }
+
+  if (!isPlainObject(parsed)) {
+    return null;
+  }
+
+  const messageData = isPlainObject(parsed.data) ? parsed.data : {};
+
+  if (eventType === "completed") {
+    return {
+      data: {
+        jsonResult: messageData.jsonResult,
+        markdownResult:
+          readNullableString(messageData.markdownResult) ?? undefined,
+        processingTimeMs:
+          typeof messageData.processingTimeMs === "number"
+            ? messageData.processingTimeMs
+            : undefined,
+      },
+      error: null,
+    };
+  }
+
+  if (eventType === "error") {
+    return {
+      data: null,
+      error: createSdkError(500, {
+        jobId,
+        message:
+          readNullableString(messageData.error) ?? "Realtime job failed.",
+      }),
+    };
+  }
+
+  return null;
+};
+
+const readSseStream = async (
+  body: ReadableStream<Uint8Array>,
+  jobId: string
+): Promise<OcrResult<RealtimeCompletionPayload, unknown>> => {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let currentEvent = "";
+
+  for (;;) {
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (line.startsWith("event: ")) {
+        currentEvent = line.slice(7).trim();
+        continue;
+      }
+
+      if (line.startsWith("data: ")) {
+        const result = handleSseEvent(currentEvent, line.slice(6), jobId);
+        if (result) {
+          return result;
+        }
+        currentEvent = "";
+        continue;
+      }
+
+      if (line === "" || line.startsWith(":")) {
+        currentEvent = "";
+      }
+    }
+  }
+
+  return {
+    data: null,
+    error: createSdkError(500, {
+      jobId,
+      message: "Realtime SSE stream ended before job completed.",
+    }),
+  };
+};
+
+const waitForCompletedJob = async (
   baseUrl: string,
   apiKey: string,
   jobId: string,
   realtime: RealtimeConfig
-): Promise<OcrResult<RealtimeCompletionPayload, unknown>> =>
-  new Promise((resolve) => {
-    let ws: WebSocket | null = null;
-    let attempts = 0;
-    let settled = false;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    const timeout = setTimeout(() => {
-      finish({
+): Promise<OcrResult<RealtimeCompletionPayload, unknown>> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), realtime.timeoutMs);
+
+  try {
+    const response = await fetch(createRealtimeUrl(baseUrl, apiKey, jobId), {
+      headers: { Accept: "text/event-stream" },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      return {
+        data: null,
+        error: createSdkError(response.status, {
+          jobId,
+          message: `Realtime SSE connection failed with status ${response.status}.`,
+        }),
+      };
+    }
+
+    const { body } = response;
+    if (!body) {
+      return {
+        data: null,
+        error: createSdkError(500, {
+          jobId,
+          message: "Realtime SSE response has no body.",
+        }),
+      };
+    }
+
+    return await readSseStream(body, jobId);
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      return {
         data: null,
         error: createSdkError(408, {
           jobId,
           message: `Timed out after ${realtime.timeoutMs}ms while waiting for realtime completion.`,
         }),
-      });
-    }, realtime.timeoutMs);
+      };
+    }
 
-    const cleanup = () => {
-      clearTimeout(timeout);
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
-      }
-      if (
-        ws &&
-        (ws.readyState === WebSocket.CONNECTING ||
-          ws.readyState === WebSocket.OPEN)
-      ) {
-        ws.close();
-      }
-      ws = null;
+    return {
+      data: null,
+      error: createSdkError(500, {
+        jobId,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unexpected SSE streaming error.",
+      }),
     };
-
-    const finish = (
-      result: OcrResult<RealtimeCompletionPayload, unknown>
-    ): void => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      cleanup();
-      resolve(result);
-    };
-
-    const scheduleReconnect = () => {
-      if (settled) {
-        return;
-      }
-      if (attempts >= realtime.wsMaxReconnectAttempts) {
-        finish({
-          data: null,
-          error: createSdkError(503, {
-            jobId,
-            message:
-              "Realtime connection closed before completion and retries were exhausted.",
-          }),
-        });
-        return;
-      }
-
-      const delay =
-        realtime.wsReconnectBaseDelayMs * 2 ** Math.max(0, attempts - 1);
-      reconnectTimer = setTimeout(connect, delay);
-    };
-
-    const handleMessage = (event: MessageEvent) => {
-      const message = parseRealtimeMessage(event.data);
-      if (!message) {
-        return;
-      }
-
-      const messageJobId = readString(message.jobId);
-      if (!messageJobId || messageJobId !== jobId) {
-        return;
-      }
-
-      const messageType = readString(message.type);
-      if (!messageType) {
-        return;
-      }
-
-      const messageData = isPlainObject(message.data) ? message.data : {};
-
-      if (messageType === "completed") {
-        finish({
-          data: {
-            jsonResult: messageData.jsonResult,
-            markdownResult:
-              readNullableString(messageData.markdownResult) ?? undefined,
-            processingTimeMs:
-              typeof messageData.processingTimeMs === "number"
-                ? messageData.processingTimeMs
-                : undefined,
-          },
-          error: null,
-        });
-        return;
-      }
-
-      if (messageType === "error") {
-        finish({
-          data: null,
-          error: createSdkError(500, {
-            jobId,
-            message:
-              readNullableString(messageData.error) ?? "Realtime job failed.",
-          }),
-        });
-      }
-    };
-
-    const connect = () => {
-      if (settled) {
-        return;
-      }
-      attempts += 1;
-
-      try {
-        ws = realtime.createWebSocket(
-          createRealtimeJobUrl(baseUrl, jobId),
-          apiKey
-        );
-      } catch (error) {
-        if (error instanceof Error) {
-          finish({
-            data: null,
-            error: createSdkError(500, {
-              jobId,
-              message: error.message,
-            }),
-          });
-          return;
-        }
-
-        scheduleReconnect();
-        return;
-      }
-
-      ws.addEventListener("message", handleMessage);
-      ws.addEventListener("error", () => {
-        if (!ws || settled) {
-          return;
-        }
-
-        if (
-          ws.readyState === WebSocket.CONNECTING ||
-          ws.readyState === WebSocket.OPEN
-        ) {
-          ws.close();
-        }
-      });
-      ws.addEventListener("close", () => {
-        if (settled) {
-          return;
-        }
-        scheduleReconnect();
-      });
-    };
-
-    connect();
-  });
+  } finally {
+    clearTimeout(timeout);
+  }
+};
 
 const getJobSnapshot = async (
   client: EdenClient,
@@ -1000,7 +922,7 @@ export const createOcrBase = (config: OcrBaseConfig = {}): OcrBaseSdk => {
   const parse = async (
     input: ParseInput
   ): Promise<OcrResult<ParseOutput, unknown>> => {
-    const realtime = normalizeRealtimeConfig(input, resolved.realtime);
+    const realtime = normalizeRealtimeConfig(input, resolved.timeoutMs);
 
     let request: NormalizedDocumentRequest;
     try {
@@ -1083,7 +1005,7 @@ export const createOcrBase = (config: OcrBaseConfig = {}): OcrBaseSdk => {
   const extract = async <TSchema>(
     input: ExtractInput<TSchema>
   ): Promise<OcrResult<ExtractOutput<InferSchemaOutput<TSchema>>, unknown>> => {
-    const realtime = normalizeRealtimeConfig(input, resolved.realtime);
+    const realtime = normalizeRealtimeConfig(input, resolved.timeoutMs);
 
     let request: NormalizedDocumentRequest;
     let jsonSchema: Record<string, unknown>;
@@ -1174,27 +1096,13 @@ export const createOcrBase = (config: OcrBaseConfig = {}): OcrBaseSdk => {
 export const generateText = async (
   options: GenerateTextOptions
 ): Promise<ParseOutput> => {
-  const {
-    apiKey,
-    baseUrl,
-    createWebSocket,
-    file,
-    fileName,
-    mimeType,
-    pages,
-    timeoutMs,
-    url,
-    wsMaxReconnectAttempts,
-    wsReconnectBaseDelayMs,
-  } = options;
+  const { apiKey, baseUrl, file, fileName, mimeType, pages, timeoutMs, url } =
+    options;
 
   const ocr = createOcrBase({
     apiKey,
     baseUrl,
-    createWebSocket,
     timeoutMs,
-    wsMaxReconnectAttempts,
-    wsReconnectBaseDelayMs,
   });
 
   const result = await ocr.parse({
@@ -1215,7 +1123,6 @@ export const generateObject = async <TSchema>(
   const {
     apiKey,
     baseUrl,
-    createWebSocket,
     file,
     fileName,
     keepSchema,
@@ -1226,17 +1133,12 @@ export const generateObject = async <TSchema>(
     schemaName,
     timeoutMs,
     url,
-    wsMaxReconnectAttempts,
-    wsReconnectBaseDelayMs,
   } = options;
 
   const ocr = createOcrBase({
     apiKey,
     baseUrl,
-    createWebSocket,
     timeoutMs,
-    wsMaxReconnectAttempts,
-    wsReconnectBaseDelayMs,
   });
 
   const result = await ocr.extract({
