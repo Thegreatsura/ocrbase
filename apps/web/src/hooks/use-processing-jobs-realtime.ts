@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef } from "react";
 
 import type { JobListItem } from "@/lib/queries";
 
-import { getJobConnection } from "@/lib/websocket";
+import { getJobConnection } from "@/lib/event-source";
 
 interface JobsPageResponse {
   data: JobListItem[];
@@ -161,8 +161,8 @@ export const useProcessingJobsRealtime = (processingJobIds: string[]) => {
 
       const listener = (msg: JobUpdateMessage) => {
         if (msg.type === "error" && msg.data?.status !== "failed") {
-          // Non-job WS/auth error — do nothing.
-          // WebSocket reconnection is handled by websocket.ts with exponential backoff.
+          // Non-job SSE/auth error — do nothing.
+          // Reconnection is handled by event-source.ts with exponential backoff.
           debugJobsRealtime(jobId, "non_job_ws_error", {
             error: msg.data?.error,
           });

@@ -6,8 +6,8 @@ import { useEffect, useRef } from "react";
 
 import type { Job, JobListItem } from "@/lib/queries";
 
+import { getJobConnection } from "@/lib/event-source";
 import { isJobProcessing } from "@/lib/queries";
-import { getJobConnection } from "@/lib/websocket";
 
 interface JobsPageResponse {
   data: JobListItem[];
@@ -177,8 +177,8 @@ export const useJobRealtime = (
             cleanup();
             break;
           }
-          // Non-job WS/auth error — set error message so the UI shows it.
-          // WebSocket reconnection is handled by websocket.ts with exponential backoff.
+          // Non-job SSE/auth error — set error message so the UI shows it.
+          // Reconnection is handled by event-source.ts with exponential backoff.
           debugJobRealtime(jobId, "non_job_ws_error", {
             error: msg.data?.error,
           });
