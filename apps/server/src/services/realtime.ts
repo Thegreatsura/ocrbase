@@ -97,7 +97,7 @@ export const subscribeToJob = async (
   const ready = subscriptionReady.get(channel);
   if (ready) {
     try {
-      // Avoid hanging the WS open handler forever if Redis is slow/unavailable.
+      // Avoid hanging the SSE handler forever if Redis is slow/unavailable.
       await Promise.race([ready, setTimeout(1000)]);
     } catch {
       // If Redis subscribe fails, keep the handler registered; callers can
@@ -153,7 +153,7 @@ const initializeMessageHandler = (): void => {
   });
 };
 
-export const closeWebSocketConnections = async (): Promise<void> => {
+export const closeRealtimeConnections = async (): Promise<void> => {
   subscriptions.clear();
   subscriptionReady.clear();
   const promises: Promise<string>[] = [];

@@ -7,7 +7,7 @@ import { eq, sql } from "drizzle-orm";
 
 import type { LlmUsage } from "../services/llm";
 
-import { publishJobUpdate } from "../services/websocket";
+import { publishJobUpdate } from "../services/realtime";
 
 interface UpdateData {
   status?: JobStatus;

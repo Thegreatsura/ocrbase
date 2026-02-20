@@ -10,7 +10,7 @@ import {
   subscribeToJob,
   unsubscribeFromJob,
   type JobUpdateMessage,
-} from "../../services/websocket";
+} from "../../services/realtime";
 
 interface WebSocketData {
   jobId: string;

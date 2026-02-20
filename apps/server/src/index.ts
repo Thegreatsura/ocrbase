@@ -3,6 +3,7 @@ import { env } from "@ocrbase/env/server";
 import { app, type App } from "./app";
 import { shutdownPosthog } from "./lib/posthog";
 import { logger } from "./plugins/logging";
+import { closeRealtimeConnections } from "./services/realtime";
 
 const startServer = (): void => {
   app.listen(env.PORT, () => {
@@ -28,6 +29,7 @@ const startServer = (): void => {
 const shutdown = async () => {
   logger.info({ event: "server_shutdown" }, "server_shutdown");
   await app.stop();
+  await closeRealtimeConnections();
   await shutdownPosthog();
   process.exit(0);
 };
