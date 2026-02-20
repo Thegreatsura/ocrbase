@@ -142,13 +142,13 @@ GITHUB_CLIENT_SECRET=your-github-client-secret
 | `DELETE` | `/v1/schemas/:id`       | Delete schema              |
 | `POST`   | `/v1/schemas/generate`  | AI-generate schema         |
 
-### WebSocket
+### Server-Sent Events
 
 ```
-WS /v1/realtime?job_id=:jobId
+GET /v1/realtime?job_id=:jobId
 ```
 
-Real-time job status updates. See SDK for type-safe usage.
+Real-time job status updates via SSE. See SDK for type-safe usage.
 
 ### OpenAPI
 
