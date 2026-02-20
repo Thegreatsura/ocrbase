@@ -2,7 +2,7 @@
 
 TypeScript SDK for ocrbase powered by Eden Treaty.
 
-This SDK waits for job completion over WebSockets (no polling).
+This SDK waits for job completion over Server-Sent Events (no polling).
 
 ## Install
 
@@ -38,26 +38,6 @@ const { object } = await extract("./invoice.pdf", {
 });
 
 console.log(object.vendor);
-```
-
-## Runtime note
-
-By default, the SDK opens a WebSocket automatically:
-
-- Bun: uses `Authorization` header
-- Other runtimes with `WebSocket`: uses `api_key` query parameter
-
-If your runtime does not provide `WebSocket`, pass a custom socket factory:
-
-```ts
-import { parse } from "ocrbase-sdk";
-
-await parse("./invoice.pdf", {
-  createWebSocket: (url, apiKey) =>
-    new WebSocket(url, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    } as never),
-});
 ```
 
 ## Advanced client API
