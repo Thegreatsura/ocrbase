@@ -142,7 +142,7 @@ Parse documents with ocrbase before sending to LLMs. Raw PDF binary wastes token
 
 ## Self-Hosting
 
-See the [Self-Hosting Guide](./docs/SELF_HOSTING.md) for the full deployment walkthrough including PaddleOCR setup (external URL or self-hosted GPU), all environment variables, and API endpoint reference.
+See the [Self-Hosting Guide](./docs/SELF_HOSTING.md) for the full deployment walkthrough including PaddleOCR setup, all environment variables, and API endpoint reference.
 
 **Requirements:** [Bun](https://bun.sh/), Docker Desktop
 

@@ -31,57 +31,31 @@ bun run dev
 
 The API will be available at `http://localhost:3000`.
 
+### Production (Docker only)
+
+To run the full stack as compiled containers (no Bun required on the host):
+
+```bash
+docker compose --profile prod up -d
+```
+
+This builds and starts the server, web, and worker containers alongside the infrastructure services.
+
 ## PaddleOCR-VL Setup
 
-ocrbase requires a PaddleOCR-VL service. Choose one option:
-
-### Option 1: External URL (Recommended)
-
-Set `PADDLE_OCR_URL` in your `.env` to point to your hosted PaddleOCR instance:
+ocrbase requires a running [PaddleOCR-VL](https://github.com/PaddlePaddle/PaddleOCR) instance. Deploy it however you prefer (cloud, self-hosted GPU, etc.) and point ocrbase at it:
 
 ```bash
 PADDLE_OCR_URL=https://your-paddleocr-instance.com
 ```
 
-### Option 2: Self-Host with GPU
-
-**Requirements:**
-
-- NVIDIA GPU with Compute Capability >= 8.0 (RTX 30/40/50 series, A10/A100+)
-- CUDA 12.6+ with NVIDIA Container Toolkit
-- ~12GB VRAM recommended (works with RTX 3060 12GB)
-
-> **Note:** GPUs with CC 7.x (T4/V100) may experience timeout or OOM issues and are not recommended.
-
-Start everything including PaddleOCR-VL 1.5:
-
-```bash
-docker compose --profile gpu up -d
-```
-
-This will start:
-
-- PostgreSQL, Redis, MinIO (core infrastructure)
-- PaddleOCR-VL 1.5 VLM server (vLLM backend) + Pipeline API
-
-Wait for "Application startup complete" - PaddleOCR will be available at `http://localhost:8080`.
-
-The first startup will download models (~2GB) which may take a few minutes.
-
-Then set in `.env`:
-
-```bash
-PADDLE_OCR_URL=http://localhost:8080
-```
+See the [PaddleOCR deployment docs](https://github.com/PaddlePaddle/PaddleOCR/blob/main/docs/paddleocr_server_deploy_en.md) for setup instructions.
 
 For large PDFs (e.g. ~200 pages), increase the OCR request timeout and reduce worker concurrency:
 
 ```bash
-# e.g. 15 minutes
-PADDLE_OCR_TIMEOUT_MS=900000
-
-# avoid saturating the OCR service
-WORKER_CONCURRENCY=1
+PADDLE_OCR_TIMEOUT_MS=900000   # 15 minutes
+WORKER_CONCURRENCY=1           # avoid saturating the OCR service
 ```
 
 ## Environment Variables

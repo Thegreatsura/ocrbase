@@ -1,3 +1,7 @@
+# Usage:
+#   docker compose up -d                  — infra only (postgres, redis, minio) for local dev
+#   docker compose --profile prod up -d   — full production stack with compiled binaries
+
 services:
   postgres:
     image: postgres:latest
@@ -5,16 +9,21 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: ocrbase
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-ocrbase}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d ocrbase"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-ocrbase}",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
 
   redis:
     image: redis:latest
@@ -29,6 +38,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
 
   minio:
     image: minio/minio
@@ -47,6 +57,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
 
   # Creates the default bucket on startup
   minio-init:
@@ -62,45 +73,15 @@ services:
       exit 0;
       "
 
-  # PaddleOCR-VL 1.5 services (optional - requires NVIDIA GPU with CC >= 8.0)
-  # Enable with: docker compose --profile gpu up
-  # Note: RTX 30/40/50 series, A10/A100+ recommended. T4/V100 may have issues.
-  paddleocr-vlm-server:
-    image: ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-genai-vllm-server:latest-nvidia-gpu
-    container_name: ocrbase-paddleocr-vlm
-    profiles: ["gpu"]
-    command: >
-      paddleocr genai_server
-      --model_name PaddleOCR-VL-1.5-0.9B
-      --host 0.0.0.0
-      --port 8000
-      --backend vllm
-      --backend_config /config/vllm_config.yaml
-    volumes:
-      - ./docker/paddleocr/vllm_config.yaml:/config/vllm_config.yaml:ro
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              device_ids: ["0"]
-              capabilities: [gpu]
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 300s
+  # --- PaddleOCR (docker compose --profile gpu up -d) ---
+  # https://www.paddleocr.ai/latest/en/version3.x/pipeline_usage/PaddleOCR-VL.html#41-method-1-deploy-using-docker-compose-recommended
 
-  paddleocr-vl-api:
+  paddleocr:
     image: ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-vl:latest-nvidia-gpu
-    container_name: ocrbase-paddleocr-api
+    container_name: ocrbase-paddleocr
     profiles: ["gpu"]
     ports:
       - "8080:8080"
-    volumes:
-      - ./docker/paddleocr/pipeline_config_vllm.yaml:/home/paddleocr/pipeline_config_vllm.yaml:ro
     deploy:
       resources:
         reservations:
@@ -108,15 +89,90 @@ services:
             - driver: nvidia
               device_ids: ["0"]
               capabilities: [gpu]
-    depends_on:
-      paddleocr-vlm-server:
-        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 300s
+
+  # --- Production services (docker compose --profile prod up -d) ---
+
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    container_name: ocrbase-server
+    profiles: ["prod"]
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL}
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - APP_VERSION=${APP_VERSION:-1.0.0}
+      - PADDLE_OCR_URL=${PADDLE_OCR_URL}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openrouter}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - S3_ENABLED=${S3_ENABLED:-false}
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - S3_BUCKET=${S3_BUCKET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        - VITE_SERVER_URL=${VITE_SERVER_URL:-http://localhost:3000}
+    container_name: ocrbase-web
+    profiles: ["prod"]
+    ports:
+      - "${WEB_PORT:-3001}:3001"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - server
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    container_name: ocrbase-worker
+    profiles: ["prod"]
+    command: ["./worker"]
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379
+      - PADDLE_OCR_URL=${PADDLE_OCR_URL}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openrouter}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - QUEUE_CONCURRENCY=${QUEUE_CONCURRENCY:-3}
+      - S3_ENABLED=${S3_ENABLED:-false}
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - S3_BUCKET=${S3_BUCKET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   postgres_data:
